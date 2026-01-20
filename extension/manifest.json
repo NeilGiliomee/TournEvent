@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "Entelect Padel Match",
+  "version": "1.0",
+  "description": "Creates a match from an Entelect event page",
+  "icons": { "96": "./favicon-96x96.png" },
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "browser_action": {
+    "default_title": "Creates a match from an Entelect event page"
+  },
+  "permissions": ["activeTab", "tabs"]
+}

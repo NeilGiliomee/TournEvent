@@ -1,0 +1,1048 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Tournament Scheduler</title>
+    <style>
+      body {
+        padding: 20px;
+      }
+
+      .matches {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 16px;
+      }
+
+      .match {
+        border-radius: 8px;
+        padding: 10px;
+        background: #364153;
+      }
+
+      .players {
+        margin-top: 6px;
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 6px;
+      }
+
+      .player {
+        min-width: 100px;
+        background: #384b6b;
+        padding: 6px;
+        border-radius: 6px;
+        cursor: grab;
+        text-align: center;
+      }
+
+      #scheduleColumn .player {
+        /* border: 1px solid #ddd; */
+        padding: 12px;
+      }
+
+      .player.invalid {
+        background: #521212;
+        border-color: #ff4d4f;
+      }
+
+      .player.valid {
+        outline: 2px dashed #4caf50;
+      }
+
+      .player.drag-over {
+        outline: 2px dashed #4caf50;
+      }
+
+      #playerPalette .player {
+        min-width: 150px;
+        margin-bottom: 8px;
+      }
+
+      #playerPalette .palette-player {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+      }
+
+      .game-count {
+        min-width: 26px;
+        text-align: center;
+        font-size: 12px;
+        font-weight: bold;
+        padding: 2px 6px;
+        border-radius: 12px;
+        background: #2d3b55;
+      }
+
+      .game-count.above-average {
+        background: #45803a;
+      }
+
+      .game-count.below-average {
+        background: #805d1c;
+      }
+
+      #playerPalette {
+        position: sticky;
+        top: 40px;
+        width: 220px;
+        padding: 10px;
+        background: #1f2633;
+        border-radius: 8px;
+        max-height: calc(100vh - 100px);
+        height: fit-content;
+      }
+
+      .selected-player {
+        outline: 3px solid #4fa1ff;
+        outline-offset: 2px;
+        box-shadow: 0 0 6px rgba(79, 120, 255, 0.6);
+      }
+
+      .selected-player-below-average {
+        outline: 3px solid #b19c23;
+        outline-offset: 2px;
+        box-shadow: 0 0 6px rgba(255, 213, 79, 0.6);
+      }
+
+      .selected-player-above-average {
+        outline: 3px solid #50a141;
+        outline-offset: 2px;
+        box-shadow: 0 0 6px rgba(79, 255, 117, 0.6);
+      }
+
+      .match .player.dimmed {
+        opacity: 0.3;
+      }
+
+      #playerPalette h3,
+      .alerts-panel h3 {
+        margin-top: 0;
+      }
+
+      .match .player.highlighted {
+        font-weight: bold;
+        background-color: #506080;
+      }
+
+      #playerList {
+        overflow-y: auto;
+        padding: 0px 8px;
+        flex: 1;
+      }
+
+      .alerts-panel {
+        position: sticky;
+        top: 40px;
+        width: 220px;
+        padding: 10px;
+        background: #1f2633;
+        border-radius: 8px;
+        max-height: calc(100vh - 100px);
+        height: fit-content;
+      }
+
+      .alert-row {
+        cursor: pointer;
+        padding: 8px;
+        margin: 10px 4px;
+        border-radius: 4px;
+        background: #805d1c;
+        min-width: 150px;
+      }
+
+      .alert-row:hover {
+        background: #a87920;
+      }
+    </style>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="icon" href="./icon/favicon.ico" type="image/x-icon" />
+    <link rel="icon" type="image/png" href="./icon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="./icon/favicon.svg" />
+  </head>
+  <body>
+    <!-- <button onclick="navigateToHome()">[Home]</button> -->
+    <body>
+      <!-- Header -->
+      <header
+        style="
+          display: flex;
+          align-items: center;
+          justify-content: flex-start;
+          gap: 12px;
+          padding: 12px 20px;
+          background: #1f2633;
+          color: #fff;
+          border-radius: 8px;
+          margin-bottom: 20px;
+        "
+      >
+        <!-- Left side buttons -->
+        <button onclick="navigateToHome()">[Home]</button>
+        <button id="togglePaletteBtn">[Hide Players]</button>
+        <button id="toggleAlertsBtn">[Hide Alerts]</button>
+
+        <!-- Right side controls -->
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 12px">
+          <button onclick="undoSwap()">[Undo swap]</button>
+          <button id="globalSwapBtn" onclick="toggleGlobalSwap()">[Global player swap: No]</button>
+        </div>
+      </header>
+
+      <div style="display: flex; gap: 20px">
+        <!-- Player Palette -->
+        <div id="playerPalette">
+          <h3>Players</h3>
+          <div id="playerList"></div>
+        </div>
+
+        <!-- Schedule Column -->
+        <div id="scheduleColumn" style="flex: 1; max-width: 600px">
+          <h2>Schedule</h2>
+          <div id="schedule"></div>
+        </div>
+
+        <!-- Alerts -->
+        <div id="alerts" class="alerts-panel"></div>
+      </div>
+    </body>
+
+    <script>
+      const GAME_LENGTH_MIN = 20;
+      const COURTS = 2;
+      const PLAYERS_PER_MATCH = 4;
+      const TOTAL_PLAYERS = 16;
+      const TOTAL_MATCHES = 12;
+      const SLOTS = TOTAL_MATCHES / COURTS;
+
+      const queryString = window.location.search;
+      const hash = window.location.hash.substring(1);
+      let globalSwap = false;
+
+      const params = new URLSearchParams(queryString ? queryString : hash);
+
+      const playerNames = JSON.parse(decodeURIComponent(params.get("playerList")));
+
+      const eventInfo = JSON.parse(decodeURIComponent(params.get("eventInfo")));
+
+      console.log("Players:", playerList);
+      console.log("Event Info:", eventInfo);
+
+      let playerSortMode = "alpha"; // "alpha" | "games-desc" | "games-asc"
+
+      let undoStack = [];
+      const MAX_UNDO = 10;
+      let players = [];
+      let schedule = generateSchedule();
+      let courtNames = Array.from({ length: COURTS }, (_, i) => `Court ${i + 1}`);
+      let selectedPlayerIds = new Set();
+
+      render();
+      renderPlayerPalette();
+      renderAlerts();
+
+      const palette = document.getElementById("playerPalette");
+      const alertsPanel = document.getElementById("alerts");
+
+      const togglePaletteBtn = document.getElementById("togglePaletteBtn");
+      const toggleAlertsBtn = document.getElementById("toggleAlertsBtn");
+
+      togglePaletteBtn.addEventListener("click", () => {
+        if (palette.style.display === "none") {
+          palette.style.display = "block";
+          togglePaletteBtn.textContent = "[Hide Players]";
+        } else {
+          palette.style.display = "none";
+          togglePaletteBtn.textContent = "[Show Players]";
+        }
+      });
+
+      toggleAlertsBtn.addEventListener("click", () => {
+        if (alertsPanel.style.display === "none") {
+          alertsPanel.style.display = "block";
+          toggleAlertsBtn.textContent = "[Hide Alerts]";
+        } else {
+          alertsPanel.style.display = "none";
+          toggleAlertsBtn.textContent = "[Show Alerts]";
+        }
+      });
+
+      function timeStringToMinutes(timeStr) {
+        const [hours, minutes] = timeStr.split(":").map(Number);
+        return hours * 60 + minutes;
+      }
+
+      function generateScheduleRelaxed() {
+        function shuffle(array) {
+          const arr = [...array];
+          for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [arr[i], arr[j]] = [arr[j], arr[i]];
+          }
+          return arr;
+        }
+        players = shuffle(playerNames)
+          .slice(0, TOTAL_PLAYERS)
+          .map((name, i) => ({ id: "p" + (i + 1), name }));
+
+        function generateSingleSchedule() {
+          let matchId = 1;
+          let minutes = timeStringToMinutes(eventInfo.startTime);
+          const slots = [];
+          const playerCounts = {};
+          players.forEach((p) => (playerCounts[p.id] = 0));
+
+          for (let s = 0; s < SLOTS; s++) {
+            const matches = [];
+            const slotUsedPlayers = new Set();
+
+            for (let c = 1; c <= COURTS; c++) {
+              const availablePlayers = players.filter((p) => !slotUsedPlayers.has(p.id));
+              const minMatches = Math.min(...availablePlayers.map((p) => playerCounts[p.id]));
+              let candidates = availablePlayers.filter((p) => playerCounts[p.id] === minMatches);
+              candidates = candidates.sort(() => Math.random() - 0.5);
+
+              const matchPlayers = [];
+              while (matchPlayers.length < PLAYERS_PER_MATCH) {
+                if (candidates.length === 0) {
+                  const remaining = availablePlayers.filter((p) => !matchPlayers.includes(p));
+                  candidates = remaining.sort(() => Math.random() - 0.5);
+                }
+                matchPlayers.push(candidates.pop());
+              }
+
+              matchPlayers.forEach((p) => slotUsedPlayers.add(p.id));
+              matchPlayers.forEach((p) => playerCounts[p.id]++);
+              matches.push({ id: "m" + matchId++, court: c, players: matchPlayers });
+            }
+
+            slots.push({ id: "s" + (s + 1), startTime: minutesToTime(minutes), matches });
+            minutes += GAME_LENGTH_MIN;
+          }
+
+          return slots;
+        }
+
+        let bestSchedule = null;
+        let minTotalCollisions = Infinity;
+
+        for (let i = 0; i < 5000; i++) {
+          const schedule = generateSingleSchedule();
+          const { togetherMap, againstMap } = generatePairAlerts(schedule);
+
+          var tempAlert = buildAlertList(schedule);
+          const totalCollisions = tempAlert.reduce((sum, e) => sum + e.count, 0);
+
+          if (totalCollisions < minTotalCollisions) {
+            minTotalCollisions = totalCollisions;
+            bestSchedule = schedule;
+          }
+
+          // Early exit if perfect schedule found
+          if (totalCollisions === TOTAL_PLAYERS * (SLOTS * COURTS * (PLAYERS_PER_MATCH - 1))) break;
+        }
+
+        console.log(bestSchedule);
+        return bestSchedule;
+      }
+
+      function generateSchedule(maxRetries = 100) {
+        let attempt = 0;
+        let schedule = null;
+
+        while (attempt < maxRetries) {
+          attempt++;
+          try {
+            // --- Initialize ---
+            players = playerNames.slice(0, TOTAL_PLAYERS).map((name, i) => ({
+              id: "p" + (i + 1),
+              name: name,
+            }));
+
+            let matchId = 1;
+            let minutes = timeStringToMinutes(eventInfo.startTime);
+            const slots = [];
+
+            const gamesPerPlayer = (TOTAL_MATCHES * PLAYERS_PER_MATCH) / TOTAL_PLAYERS;
+
+            const playedWith = {};
+            const matchCounts = {};
+            players.forEach((p) => {
+              playedWith[p.id] = new Set();
+              matchCounts[p.id] = 0;
+            });
+
+            // --- Build schedule ---
+            for (let s = 0; s < SLOTS; s++) {
+              const matches = [];
+              const slotUsedPlayers = new Set();
+
+              for (let c = 1; c <= COURTS; c++) {
+                let availablePlayers = players.filter((p) => !slotUsedPlayers.has(p.id) && matchCounts[p.id] < gamesPerPlayer);
+
+                const matchPlayers = [];
+
+                while (matchPlayers.length < PLAYERS_PER_MATCH) {
+                  const candidates = availablePlayers.filter((p) => !matchPlayers.some((mp) => playedWith[p.id].has(mp.id)));
+
+                  if (candidates.length === 0) {
+                    // Fail this attempt
+                    throw new Error("No valid candidates, retrying...");
+                  }
+
+                  const idx = Math.floor(Math.random() * candidates.length);
+                  const selected = candidates[idx];
+                  matchPlayers.push(selected);
+                  availablePlayers = availablePlayers.filter((p) => p.id !== selected.id);
+                }
+
+                // Update slotUsedPlayers, pairing history, and counts
+                matchPlayers.forEach((p) => slotUsedPlayers.add(p.id));
+                for (let i = 0; i < matchPlayers.length; i++) {
+                  matchCounts[matchPlayers[i].id]++;
+                  for (let j = 0; j < matchPlayers.length; j++) {
+                    if (i !== j) playedWith[matchPlayers[i].id].add(matchPlayers[j].id);
+                  }
+                }
+
+                matches.push({
+                  id: "m" + matchId++,
+                  court: c,
+                  players: matchPlayers,
+                });
+              }
+
+              slots.push({
+                id: "s" + (s + 1),
+                startTime: minutesToTime(minutes),
+                matches,
+              });
+
+              minutes += GAME_LENGTH_MIN;
+            }
+
+            // --- Check if perfectly balanced ---
+            const allBalanced = players.every((p) => matchCounts[p.id] === gamesPerPlayer);
+            if (!allBalanced) throw new Error("Unbalanced, retrying...");
+
+            console.log("Perfect schedule generated on attempt", attempt);
+            console.log("Matches per player:", matchCounts);
+            schedule = slots;
+            break; // success
+          } catch (err) {
+            if (attempt === maxRetries) {
+              console.warn("Could not generate perfectly balanced schedule after 100 attempts. Relaxing games-per-player constraint...");
+            }
+            // retry automatically
+          }
+        }
+
+        // --- Fallback: relax games-per-player constraint ---
+        if (!schedule) {
+          console.log("Generating schedule without games-per-player constraint (still no repeated pairings)...");
+          schedule = generateScheduleRelaxed();
+        }
+
+        return schedule;
+      }
+
+      function minutesToTime(total) {
+        const h = Math.floor(total / 60);
+        const m = total % 60;
+        return String(h).padStart(2, "0") + ":" + String(m).padStart(2, "0");
+      }
+
+      function renamePlayer(playerId, newName) {
+        const trimmed = newName.trim();
+        if (!trimmed) return;
+
+        const player = players.find((p) => p.id === playerId);
+        if (!player) return;
+
+        player.name = trimmed;
+
+        undoStack.forEach((state) => {
+          state.forEach((slot) => {
+            slot.matches.forEach((match) => {
+              match.players.forEach((p) => {
+                if (p.id === playerId) p.name = trimmed;
+              });
+            });
+          });
+        });
+
+        render();
+        renderPlayerPalette();
+        renderAlerts();
+      }
+
+      // ---------------------------
+      // Render
+      // ---------------------------
+      function render() {
+        const { counts, average } = getPlayerGameStats();
+        const root = document.getElementById("schedule");
+        root.innerHTML = "";
+
+        schedule.forEach((slot, i) => {
+          const slotDiv = document.createElement("div");
+          slotDiv.className = "slot";
+
+          slotDiv.innerHTML = `
+        <h3>Round ${i + 1} (${slot.startTime})</h3>
+        <div class="matches"></div>
+      `;
+
+          const matchesDiv = slotDiv.querySelector(".matches");
+
+          slot.matches.forEach((match) => {
+            const matchDiv = document.createElement("div");
+            matchDiv.className = "match";
+
+            matchDiv.innerHTML = `
+          <strong>${courtNames[match.court - 1]}</strong>
+          <div class="players"></div>
+        `;
+
+            const playersDiv = matchDiv.querySelector(".players");
+
+            match.players.forEach((player, index) => {
+              const playerDiv = document.createElement("div");
+              playerDiv.className = "player";
+              playerDiv.textContent = player.name;
+              playerDiv.draggable = true;
+
+              playerDiv.dataset.matchId = match.id;
+              playerDiv.dataset.playerId = player.id;
+              playerDiv.dataset.playerIndex = index;
+
+              const duplicateInMatch = match.players.filter((p) => p.id === player.id).length > 1;
+              const duplicateInSlot = slot.matches.filter((m) => m.id !== match.id).some((m) => m.players.some((p) => p.id === player.id));
+
+              if (duplicateInMatch || duplicateInSlot) {
+                playerDiv.classList.add("invalid");
+              }
+
+              const count = counts[player.id];
+              if (selectedPlayerIds.has(player.id)) {
+                if (count > average) playerDiv.classList.add("selected-player-above-average");
+                else if (count < average) playerDiv.classList.add("selected-player-below-average");
+                else playerDiv.classList.add("selected-player"); // neutral
+              }
+
+              // Remove classes if unselected
+              if (!selectedPlayerIds.has(player.id)) {
+                playerDiv.classList.remove("selected-player", "selected-player-below-average", "selected-player-above-average");
+              }
+
+              attachDragEvents(playerDiv);
+              playersDiv.appendChild(playerDiv);
+
+              if (index === 1) {
+                const vsDiv = document.createElement("div");
+                vsDiv.textContent = "VS";
+                vsDiv.style.textAlign = "center";
+                vsDiv.style.fontWeight = "bold";
+                vsDiv.style.margin = "4px 0";
+                vsDiv.style.gridColumn = "1 / -1";
+                playersDiv.appendChild(vsDiv);
+              }
+            });
+
+            matchesDiv.appendChild(matchDiv);
+          });
+
+          root.appendChild(slotDiv);
+        });
+      }
+
+      function getPlayerGameStats() {
+        const counts = {};
+        let totalGames = 0;
+
+        players.forEach((p) => (counts[p.id] = 0));
+
+        schedule.forEach((slot) => {
+          slot.matches.forEach((match) => {
+            match.players.forEach((player) => {
+              counts[player.id]++;
+              totalGames++;
+            });
+          });
+        });
+
+        const average = Math.round(totalGames / players.length);
+
+        return { counts, average };
+      }
+
+      // ---------------------------
+      // Render Player Palette
+      // ---------------------------
+      function renderPlayerPalette() {
+        const listDiv = document.getElementById("playerList");
+        listDiv.innerHTML = "";
+
+        // ---- Sort Toggle ----
+        const toggleRow = document.createElement("div");
+        toggleRow.style.display = "flex";
+        toggleRow.style.alignItems = "center";
+        toggleRow.style.gap = "8px";
+        toggleRow.style.marginBottom = "10px";
+
+        const label = document.createElement("strong");
+        label.textContent = "Sort by:";
+
+        const toggleBtn = document.createElement("button");
+
+        function updateToggleLabel() {
+          switch (playerSortMode) {
+            case "alpha":
+              toggleBtn.textContent = "[A → Z]";
+              break;
+            case "games-desc":
+              toggleBtn.textContent = "[Games ↓]";
+              break;
+            case "games-asc":
+              toggleBtn.textContent = "[Games ↑]";
+              break;
+          }
+        }
+
+        toggleBtn.onclick = () => {
+          // cycle modes
+          if (playerSortMode === "alpha") {
+            playerSortMode = "games-desc";
+          } else if (playerSortMode === "games-desc") {
+            playerSortMode = "games-asc";
+          } else {
+            playerSortMode = "alpha";
+          }
+
+          updateToggleLabel();
+          renderPlayerPalette();
+        };
+
+        updateToggleLabel();
+
+        toggleRow.appendChild(label);
+        toggleRow.appendChild(toggleBtn);
+        listDiv.appendChild(toggleRow);
+
+        const { counts, average } = getPlayerGameStats();
+
+        const sortedPlayers = [...players].sort((a, b) => {
+          const countA = counts[a.id] ?? 0;
+          const countB = counts[b.id] ?? 0;
+
+          // Always use name as tie-breaker
+          const nameCompare = a.name.localeCompare(b.name);
+
+          if (playerSortMode === "alpha") {
+            return nameCompare;
+          }
+
+          if (playerSortMode === "games-desc") {
+            if (countB !== countA) return countB - countA; // high → low
+            return nameCompare; // fallback A → Z
+          }
+
+          if (playerSortMode === "games-asc") {
+            if (countA !== countB) return countA - countB; // low → high
+            return nameCompare; // fallback A → Z
+          }
+
+          return 0;
+        });
+
+        sortedPlayers.forEach((player) => {
+          const playerDiv = document.createElement("div");
+          playerDiv.className = "player palette-player";
+          playerDiv.draggable = true;
+          playerDiv.dataset.playerId = player.id;
+
+          // --- Name span ---
+          const nameSpan = document.createElement("span");
+          nameSpan.textContent = player.name;
+          nameSpan.style.flex = "1";
+
+          playerDiv.addEventListener("mouseenter", () => {
+            const allSchedulePlayers = document.querySelectorAll("#schedule .player");
+            allSchedulePlayers.forEach((p) => {
+              if (p.dataset.playerId !== player.id) {
+                p.classList.add("dimmed");
+                p.classList.remove("highlighted");
+              } else {
+                p.classList.add("highlighted");
+                p.classList.remove("dimmed");
+              }
+            });
+          });
+
+          playerDiv.addEventListener("mouseleave", () => {
+            const allSchedulePlayers = document.querySelectorAll("#schedule .player");
+            allSchedulePlayers.forEach((p) => {
+              p.classList.remove("dimmed", "highlighted");
+            });
+          });
+
+          playerDiv.appendChild(nameSpan);
+
+          // --- Game count badge ---
+          const countBadge = document.createElement("span");
+          countBadge.className = "game-count";
+          const count = counts[player.id];
+          countBadge.textContent = count;
+
+          if (count > average) countBadge.classList.add("above-average");
+          else if (count < average) countBadge.classList.add("below-average");
+
+          countBadge.addEventListener("click", (e) => {
+            e.stopPropagation();
+
+            if (selectedPlayerIds.has(player.id)) {
+              selectedPlayerIds.delete(player.id);
+            } else {
+              selectedPlayerIds.add(player.id);
+            }
+
+            render();
+            renderPlayerPalette();
+          });
+
+          playerDiv.appendChild(countBadge);
+
+          // Highlight if selected
+          if (selectedPlayerIds.has(player.id)) {
+            playerDiv.classList.add("selected-player");
+          }
+
+          // --- Double-click on the whole row = rename ---
+          playerDiv.addEventListener("dblclick", (e) => {
+            e.stopPropagation();
+
+            const input = document.createElement("input");
+            input.type = "text";
+            input.value = player.name;
+            input.style.width = "100%";
+
+            nameSpan.replaceWith(input);
+            input.focus();
+            input.select();
+
+            const commit = () => renamePlayer(player.id, input.value);
+
+            input.addEventListener("blur", commit);
+            input.addEventListener("keydown", (e) => {
+              if (e.key === "Enter") commit();
+              if (e.key === "Escape") renderPlayerPalette();
+            });
+
+            input.addEventListener("mousedown", (e) => e.stopPropagation());
+          });
+
+          attachDragEvents(playerDiv);
+          listDiv.appendChild(playerDiv);
+        });
+
+        // ---- Court name editor ----
+        const editor = document.createElement("div");
+        editor.style.marginTop = "12px";
+        editor.style.paddingTop = "10px";
+        editor.style.borderTop = "1px solid #444";
+
+        const title = document.createElement("strong");
+        title.textContent = "Court Names";
+        editor.appendChild(title);
+
+        courtNames.forEach((name, index) => {
+          const row = document.createElement("div");
+          row.style.marginTop = "6px";
+
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = name;
+          input.style.width = "90%";
+
+          input.addEventListener("input", (e) => {
+            courtNames[index] = e.target.value || `Court ${index + 1}`;
+            render();
+          });
+
+          row.appendChild(input);
+          editor.appendChild(row);
+        });
+
+        listDiv.appendChild(editor);
+      }
+
+      // ---------------------------
+      // Drag & Drop Logic
+      // ---------------------------
+      let dragged = null;
+
+      function attachDragEvents(el) {
+        el.addEventListener("dragstart", (e) => {
+          dragged = el;
+          e.dataTransfer.effectAllowed = "move";
+          const allSchedulePlayers = document.querySelectorAll("#schedule .player");
+          allSchedulePlayers.forEach((p) => {
+            p.classList.remove("dimmed", "highlighted");
+          });
+        });
+
+        el.addEventListener("dragover", (e) => {
+          e.preventDefault();
+          el.classList.add("drag-over");
+        });
+
+        el.addEventListener("dragleave", () => {
+          el.classList.remove("drag-over");
+        });
+
+        el.addEventListener("drop", (e) => {
+          e.preventDefault();
+          el.classList.remove("drag-over");
+
+          // Determine if dragged is from palette or match
+          const fromMatchId = dragged.dataset.matchId || null;
+          const fromPlayerId = dragged.dataset.playerId;
+          const fromPlayerIndex = dragged.dataset.playerIndex != null ? Number(dragged.dataset.playerIndex) : null;
+
+          const toMatchId = el.dataset.matchId;
+          const toPlayerId = el.dataset.playerId;
+          const toPlayerIndex = Number(el.dataset.playerIndex);
+
+          swapPlayers(fromMatchId, fromPlayerId, fromPlayerIndex, toMatchId, toPlayerId, toPlayerIndex);
+          render();
+          renderPlayerPalette();
+          renderAlerts();
+        });
+      }
+
+      // ---------------------------
+      // Swap Players in Data Model
+      // ---------------------------
+      function swapPlayers(fromMatchId, fromPlayerId, fromPlayerIndex, toMatchId, toPlayerId, toPlayerIndex) {
+        if (fromPlayerId == toPlayerId || !toMatchId) {
+          return;
+        }
+        // Push current state to undo stack
+        undoStack.push(JSON.parse(JSON.stringify(schedule)));
+        if (undoStack.length > MAX_UNDO) {
+          undoStack.shift();
+        }
+
+        let fromPlayer, toPlayer;
+        let fromSlot, toSlot;
+        let fromMatch, toMatch;
+
+        // Locate players + matches + slots
+        schedule.forEach((slot) => {
+          slot.matches.forEach((match) => {
+            if (!fromMatchId && !fromPlayer) {
+              fromPlayer = players.find((p) => p.id === fromPlayerId);
+            } else if (match.id === fromMatchId) {
+              fromMatch = match;
+              fromSlot = slot;
+              fromPlayer = match.players.find((p) => p.id === fromPlayerId);
+            }
+
+            if (match.id === toMatchId) {
+              toMatch = match;
+              toSlot = slot;
+              toPlayer = match.players.find((p) => p.id === toPlayerId);
+            }
+          });
+        });
+
+        if (!fromPlayer || !toPlayer) return;
+        schedule.forEach((slot) => {
+          slot.matches.forEach((match) => {
+            match.players = match.players.map((p, index) => {
+              if (!fromMatchId) {
+                // From player palette
+                if (p.id === toPlayerId && match.id === toMatchId && index == toPlayerIndex) {
+                  return fromPlayer;
+                } else if (globalSwap && !fromMatchId) {
+                  if (p.id === toPlayerId) return fromPlayer;
+                  if (p.id === fromPlayerId) return toPlayer;
+                }
+              } else {
+                if (globalSwap) {
+                  // From schedule; global swap enabled
+                  if (p.id === fromPlayerId) return toPlayer;
+                  if (p.id === toPlayerId) return fromPlayer;
+                } else {
+                  // From schedule; global swap disabled
+                  if (p.id === fromPlayerId && match.id === fromMatchId && index == fromPlayerIndex) return toPlayer;
+                  if (p.id === toPlayerId && match.id === toMatchId && index == toPlayerIndex) return fromPlayer;
+                }
+              }
+
+              return p;
+            });
+          });
+        });
+      }
+
+      function undoSwap() {
+        if (undoStack.length === 0) return;
+        schedule = undoStack.pop();
+        render();
+        renderPlayerPalette();
+        renderAlerts();
+      }
+
+      // ---------------------------
+      // Undo swap using keybind
+      // ---------------------------
+      document.addEventListener("keydown", function (e) {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          undoSwap();
+        }
+      });
+
+      function generatePairAlerts(schedule) {
+        const togetherMap = new Map();
+        const againstMap = new Map();
+
+        function normalizePair(a, b) {
+          return [a, b].sort().join("|");
+        }
+
+        function bump(map, key, match) {
+          if (!map.has(key)) {
+            map.set(key, { count: 0, matches: [] });
+          }
+          const entry = map.get(key);
+          entry.count++;
+          entry.matches.push(match);
+        }
+
+        schedule.forEach((slot) => {
+          slot.matches.forEach((match) => {
+            const p = match.players;
+            if (!p || p.length !== 4) return;
+
+            const teamA = [p[0].name, p[1].name];
+            const teamB = [p[2].name, p[3].name];
+
+            // ---- Together ----
+            bump(togetherMap, normalizePair(teamA[0], teamA[1]), match);
+            bump(togetherMap, normalizePair(teamB[0], teamB[1]), match);
+
+            // ---- Against ----
+            teamA.forEach((a) => {
+              teamB.forEach((b) => {
+                bump(againstMap, normalizePair(a, b), match);
+              });
+            });
+          });
+        });
+
+        return { togetherMap, againstMap };
+      }
+
+      function buildAlertList(schedule) {
+        const { togetherMap, againstMap } = generatePairAlerts(schedule);
+        const alerts = [];
+
+        function pushAlerts(map, type, separator) {
+          map.forEach((entry, key) => {
+            if (entry.count <= 1) return;
+
+            const [a, b] = key.split("|");
+
+            alerts.push({
+              key,
+              type, // "together" | "against"
+              players: [a, b],
+              matches: entry.matches,
+              text: `${a} ${separator} ${b}: ${entry.count} times`,
+              count: entry.count,
+            });
+          });
+        }
+
+        pushAlerts(togetherMap, "together", "+");
+        pushAlerts(againstMap, "against", "VS");
+
+        // return alerts.sort((a, b) => a.text.localeCompare(b.text));
+        return alerts;
+      }
+
+      function highlightAlert(alert) {
+        const schedulePlayers = document.querySelectorAll("#schedule .player");
+
+        schedulePlayers.forEach((el) => {
+          const playerName = el.textContent.trim();
+          const matchId = el.dataset.matchId;
+
+          const isPlayerInAlert = alert.players.includes(playerName);
+          const isMatchInAlert = alert.matches.some((m) => m.id == matchId);
+
+          if (isPlayerInAlert && isMatchInAlert) {
+            el.classList.add("highlighted");
+            el.classList.remove("dimmed");
+          } else {
+            el.classList.add("dimmed");
+            el.classList.remove("highlighted");
+          }
+        });
+      }
+
+      function clearAlertHighlight() {
+        const schedulePlayers = document.querySelectorAll("#schedule .player");
+        schedulePlayers.forEach((el) => {
+          el.classList.remove("highlighted", "dimmed");
+        });
+      }
+
+      function renderAlerts() {
+        const alertDiv = document.getElementById("alerts");
+        if (!alertDiv) return;
+
+        alertDiv.innerHTML = "<h3>Alerts</h3>";
+
+        const alerts = buildAlertList(schedule);
+
+        if (alerts.length === 0) {
+          const ok = document.createElement("div");
+          ok.textContent = "No issues found 🎉";
+          ok.style.opacity = "0.7";
+          alertDiv.appendChild(ok);
+          return;
+        }
+
+        alerts.forEach((alert) => {
+          const row = document.createElement("div");
+          row.textContent = alert.text;
+          row.className = "alert-row";
+
+          row.addEventListener("mouseenter", () => {
+            highlightAlert(alert);
+          });
+
+          row.addEventListener("mouseleave", () => {
+            clearAlertHighlight();
+          });
+
+          alertDiv.appendChild(row);
+        });
+      }
+
+      function toggleGlobalSwap() {
+        globalSwap = !globalSwap;
+        const btn = document.getElementById("globalSwapBtn");
+        btn.textContent = "[Global player swap: " + (globalSwap ? "Yes" : "No") + "]";
+      }
+
+      function navigateToHome() {
+        window.location.href = "index";
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Matchup</title>
+    <link rel="stylesheet" href="./css/style.css" />
+    <link rel="icon" href="./icon/favicon.ico" type="image/x-icon" />
+    <link rel="icon" type="image/png" href="./icon/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="./icon/favicon.svg" />
+  </head>
+
+  <body>
+    <button onclick="navigateToHome()">[Home]</button>
+
+    <h1>Matchup</h1>
+
+    <!-- Container for player count -->
+    <div id="mainContainer" style="display: flex; gap: 40px; align-items: flex-start">
+      <!-- Player List -->
+      <div id="playerListContainer">
+        <h3>Players:</h3>
+        <div id="playerInputContainer"></div>
+        <button onclick="addRow()">[Add]</button>
+        <button onclick="clearRows()">[Clear]</button>
+      </div>
+      <!-- Tournament Settings -->
+      <div id="settingsContainer">
+        <h3 style="margin-bottom: 12px">Settings:</h3>
+
+        <label>
+          Tournament name
+          <input style="width: 400px" id="eventNameInput" onblur="updateEventInfo({ ...eventInfo, eventName: this.value })" class="settings-input" />
+        </label>
+
+        <label>
+          Start Time
+          <input id="startTimeInput" type="time" onblur="updateEventInfo({ ...eventInfo, startTime: this.value })" class="settings-input" />
+        </label>
+
+        <label>
+          End Time
+          <input id="endTimeInput" type="time" onblur="updateEventInfo({ ...eventInfo, endTime: this.value })" class="settings-input" />
+        </label>
+
+        <label>
+          Match Length (mins)
+          <input
+            id="matchLengthInput"
+            type="number"
+            onblur="updateEventInfo({ ...eventInfo, matchLength: Number(this.value) })"
+            class="settings-input number-input"
+          />
+        </label>
+
+        <label>
+          Court count
+          <input
+            id="courtCountInput"
+            type="number"
+            onblur="updateEventInfo({ ...eventInfo, courtCount: Number(this.value) })"
+            class="settings-input number-input"
+          />
+        </label>
+
+        <div id="eventInfoContainer"></div>
+        <div id="playerCountContainer"></div>
+        <button onclick="generateEvent()">[GENERATE EVENT]</button>
+      </div>
+    </div>
+
+    <script>
+      const eventInfoContainer = document.getElementById("eventInfoContainer");
+      const playerCountContainer = document.getElementById("playerCountContainer");
+      const playerInputContainer = document.getElementById("playerInputContainer");
+
+      const queryString = window.location.search;
+      const hash = window.location.hash.substring(1);
+
+      const params = new URLSearchParams(queryString ? queryString : hash);
+      const param = params.get("playerList");
+      const title = params.get("title");
+
+      const playerListStorage = JSON.parse(localStorage.getItem("playerList"));
+      console.log(playerListStorage);
+
+      const list = param ? JSON.parse(decodeURIComponent(param)) : playerListStorage ? playerListStorage : [];
+
+      let eventInfo = {
+        eventName: title ? decodeURIComponent(title) : null,
+        startTime: "18:00",
+        endTime: "20:00",
+        tournamentLength: 120,
+        matchLength: 20,
+        courtCount: 2,
+      };
+      populateDefaultSettings();
+
+      let playerCountList = 0;
+
+      function populateDefaultSettings() {
+        document.getElementById("eventNameInput").value = eventInfo.eventName || "";
+        document.getElementById("startTimeInput").value = eventInfo.startTime;
+        document.getElementById("endTimeInput").value = eventInfo.endTime;
+        document.getElementById("matchLengthInput").value = eventInfo.matchLength;
+        document.getElementById("courtCountInput").value = eventInfo.courtCount;
+      }
+
+      function updateEventInfo(val) {
+        function timeToMinutes(timeStr) {
+          const [hours, minutes] = timeStr.split(":").map(Number);
+          return hours * 60 + minutes;
+        }
+        console.log(val);
+        eventInfo = val;
+        try {
+          eventInfo.tournamentLength = timeToMinutes(val.endTime) - timeToMinutes(val.startTime);
+          renderEventInfo();
+        } catch (e) {}
+      }
+
+      function renderEventInfo() {
+        const matchCount = (eventInfo.tournamentLength / eventInfo.matchLength) * eventInfo.courtCount;
+
+        if (Number.isNaN(matchCount) || matchCount === Infinity || !matchCount) {
+          return;
+        }
+
+        eventInfoContainer.innerHTML = "";
+        const matchCountElement = document.createElement("span");
+        matchCountElement.textContent = `Match count: ${matchCount} `;
+        eventInfoContainer.appendChild(matchCountElement);
+      }
+
+      function syncListWithInputs() {
+        const inputs = playerInputContainer.querySelectorAll("input");
+        inputs.forEach((input, index) => {
+          list[index] = input.value;
+        });
+        localStorage.setItem("playerList", JSON.stringify(list));
+      }
+
+      // Render player count
+      function renderPlayerCount() {
+        syncListWithInputs();
+        playerCountContainer.innerHTML = "";
+        playerCountList = list.reduce((acc, val) => {
+          if (!val) return acc;
+          acc[val] = (acc[val] || 0) + 1;
+          return acc;
+        }, {});
+        const playerCount = Object.values(playerCountList).reduce((sum, c) => sum + c, 0);
+
+        const title = document.createElement("h4");
+        title.textContent = `Players: ${playerCount}`;
+        playerCountContainer.appendChild(title);
+      }
+
+      // Render player inputs
+      function renderPlayerInput(clickedGenerate) {
+        playerInputContainer.innerHTML = "";
+
+        if (list.length == 0) {
+          list.push("");
+        }
+        list.forEach((item, index) => {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.value = item;
+          input.style.marginBottom = "0.5em";
+          input.style.marginRight = "0.5em";
+
+          renderPlayerCount();
+          if (clickedGenerate && item && playerCountList[item] > 1) {
+            input.style.color = "red";
+          } else {
+            input.style.color = "";
+          }
+
+          input.addEventListener("blur", () => {
+            list[index] = input.value;
+            localStorage.setItem("playerList", JSON.stringify(list));
+            renderPlayerCount();
+          });
+
+          input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              focusNextInput(index);
+            }
+          });
+          const button = document.createElement("button");
+          button.textContent = "[X]";
+          button.onclick = function () {
+            removeRow(index);
+          };
+          playerInputContainer.appendChild(input);
+          playerInputContainer.appendChild(button);
+          playerInputContainer.appendChild(document.createElement("br"));
+        });
+      }
+
+      // Focus the next input or add a new row
+      function focusNextInput(currentIndex) {
+        syncListWithInputs();
+        const inputs = playerInputContainer.querySelectorAll("input");
+        if (currentIndex < inputs.length - 1) {
+          inputs[currentIndex + 1].focus();
+        } else {
+          addRow();
+          // Wait for DOM update
+          setTimeout(() => {
+            const newInputs = playerInputContainer.querySelectorAll("input");
+            newInputs[newInputs.length - 1].focus();
+          }, 0);
+        }
+      }
+
+      function addRow() {
+        list.push("");
+        renderPlayerInput();
+      }
+
+      function removeRow(i) {
+        list.splice(i, 1);
+        renderPlayerInput();
+      }
+
+      function clearRows() {
+        list.splice(0);
+        renderPlayerInput();
+      }
+
+      function generateEvent() {
+        renderPlayerInput(true);
+        if (list.some((e) => playerCountList[e] > 1)) {
+          return;
+        }
+        syncListWithInputs();
+        const encodedPlayers = encodeURIComponent(JSON.stringify(list));
+        const encodedEventInfo = encodeURIComponent(JSON.stringify(eventInfo));
+
+        const url = `event-manage#playerList=${encodedPlayers}&eventInfo=${encodedEventInfo}`;
+        window.location.href = url;
+      }
+
+      function navigateToHome() {
+        window.location.href = "index";
+      }
+
+      // Initial render
+      renderPlayerCount();
+      renderPlayerInput();
+      renderEventInfo();
+    </script>
+
+    <script src="./dist/event-create.js" type="module"></script>
+  </body>
+</html>
