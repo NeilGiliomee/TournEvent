@@ -18,13 +18,13 @@
         const list = ["Neil Giliomee", "Miguel Hunter"];
         if (withCache) {
           const param = encodeURIComponent(JSON.stringify(list));
-          window.location.href = `event-create#playerList=${param}`;
+          window.location.href = `event-create.html#playerList=${param}`;
         } else {
-          window.location.href = "event-create";
+          window.location.href = "event-create.html";
         }
       }
     </script>
 
-    <script src="./dist/index.js" type="module"></script>
+    <!-- <script src="./dist/index.js" type="module"></script> -->
   </body>
 </html>

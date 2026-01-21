@@ -239,12 +239,12 @@
         const encodedPlayers = encodeURIComponent(JSON.stringify(list));
         const encodedEventInfo = encodeURIComponent(JSON.stringify(eventInfo));
 
-        const url = `event-manage#playerList=${encodedPlayers}&eventInfo=${encodedEventInfo}`;
+        const url = `event-manage.html#playerList=${encodedPlayers}&eventInfo=${encodedEventInfo}`;
         window.location.href = url;
       }
 
       function navigateToHome() {
-        window.location.href = "index";
+        window.location.href = "index.html";
       }
 
       // Initial render
@@ -253,6 +253,6 @@
       renderEventInfo();
     </script>
 
-    <script src="./dist/event-create.js" type="module"></script>
+    <!-- <script src="./dist/event-create.js" type="module"></script> -->
   </body>
 </html>
