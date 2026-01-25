@@ -30,7 +30,7 @@ chrome.browserAction.onClicked.addListener(function (tab) {
       const encodedList = encodeURIComponent(JSON.stringify(participants));
       const title = encodeURIComponent("Entelect Padel: " + date);
 
-      const url = `http://localhost:3000/event-create?playerList=${encodedList}&title=${title}`;
+      const url = `https://tourn-event.vercel.app/event-create.html?playerList=${encodedList}&title=${title}`;
       chrome.tabs.create({ url });
     },
   );

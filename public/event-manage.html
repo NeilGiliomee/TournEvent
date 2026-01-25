@@ -156,6 +156,7 @@
         background: #a87920;
       }
     </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
     <link rel="stylesheet" href="./css/style.css" />
     <link rel="icon" href="./icon/favicon.ico" type="image/x-icon" />
     <link rel="icon" type="image/png" href="./icon/favicon-96x96.png" sizes="96x96" />
@@ -180,6 +181,7 @@
       >
         <!-- Left side buttons -->
         <button onclick="navigateToHome()">[Home]</button>
+        <button onclick="generateReadOnlyUrl()">[Share Read-Only Link]</button>
         <button id="togglePaletteBtn">[Hide Players]</button>
         <button id="toggleAlertsBtn">[Hide Alerts]</button>
 
@@ -215,16 +217,18 @@
       const TOTAL_PLAYERS = 16;
       const TOTAL_MATCHES = 12;
       const SLOTS = TOTAL_MATCHES / COURTS;
+      const MAX_UNDO = 100;
+      const SECRET_KEY = "TournEvent-ReadOnly-v3";
 
       const queryString = window.location.search;
       const hash = window.location.hash.substring(1);
       let globalSwap = false;
 
       const params = new URLSearchParams(queryString ? queryString : hash);
+      const isReadOnly = params.get("data");
 
-      const playerNames = JSON.parse(decodeURIComponent(params.get("playerList")));
-
-      const eventInfo = JSON.parse(decodeURIComponent(params.get("eventInfo")));
+      const playerNames = JSON.parse(decodeURIComponent(params.get("playerList"))) || [];
+      const eventInfo = JSON.parse(decodeURIComponent(params.get("eventInfo"))) || {};
 
       console.log("Players:", playerNames);
       console.log("Event Info:", eventInfo);
@@ -232,10 +236,19 @@
       let playerSortMode = "alpha"; // "alpha" | "games-desc" | "games-asc"
 
       let undoStack = [];
-      const MAX_UNDO = 10;
       let players = [];
-      let schedule = generateSchedule();
       let courtNames = Array.from({ length: COURTS }, (_, i) => `Court ${i + 1}`);
+
+      const scheduleFromUrl = parseScheduleFromUrl();
+      let schedule = [];
+
+      (async () => {
+        schedule = parseScheduleFromUrl() || generateSchedule();
+        render();
+        renderPlayerPalette();
+        renderAlerts();
+      })();
+      console.log(schedule);
       let selectedPlayerIds = new Set();
 
       render();
@@ -267,6 +280,117 @@
           toggleAlertsBtn.textContent = "[Show Alerts]";
         }
       });
+
+      async function loadScheduleFromUrl() {
+        console.log(params.get("s"));
+        const token = params.get("s");
+        if (!token) return null;
+
+        try {
+          const combined = base64UrlDecode(token);
+          const iv = combined.slice(0, 12);
+          const encrypted = combined.slice(12);
+
+          const key = await getCryptoKey();
+          const decrypted = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, encrypted);
+
+          // 1️⃣ decompress using lz-string
+          const decompressed = LZString.decompressFromUint8Array(new Uint8Array(decrypted));
+
+          const payload = JSON.parse(decompressed);
+          courtNames = payload.courtNames || courtNames;
+          return payload.schedule;
+        } catch (e) {
+          console.warn("Failed to decrypt schedule", e);
+          alert("Invalid or corrupted read-only link.");
+          return null;
+        }
+      }
+
+      function generateReadOnlyUrl() {
+        const title = eventInfo.title || "Tournament";
+        const courtsStr = courtNames.join(",");
+        const timesStr = schedule.map((s) => s.startTime).join(",");
+        const playersStr = schedule.flatMap((s) => s.matches.flatMap((m) => m.players.map((p) => p.name))).join(",");
+
+        const flatStr = `${title}|${courtsStr}|${timesStr}|${playersStr}`;
+
+        // Compress to URL-safe string
+        const compressed = LZString.compressToEncodedURIComponent(flatStr);
+
+        // Put in query param
+        const url = `${window.location.origin}${window.location.pathname}?data=${compressed}`;
+
+        window.open(url, "_blank");
+      }
+
+      function parseScheduleFromUrl() {
+        const params = new URLSearchParams(window.location.search);
+        const compressed = params.get("data");
+        if (!compressed) return null;
+
+        const flatStr = LZString.decompressFromEncodedURIComponent(compressed);
+        if (!flatStr) return null;
+
+        const [title, courtsStr, timesStr, playersStr] = flatStr.split("|");
+
+        const courts = courtsStr.split(",");
+        const times = timesStr.split(",");
+        const playersFlat = playersStr.split(",");
+
+        // Rebuild schedule
+        const slots = times.map((time, idx) => {
+          const matches = [];
+          for (let c = 0; c < courts.length; c++) {
+            const start = (idx * courts.length + c) * 4;
+            const matchPlayers = playersFlat.slice(start, start + 4).map((name, i) => ({
+              id: `p${start + i + 1}`,
+              name,
+            }));
+            matches.push({ id: `m${idx * courts.length + c + 1}`, court: c + 1, players: matchPlayers });
+          }
+          return { id: `s${idx + 1}`, startTime: time, matches };
+        });
+
+        courtNames = courts;
+        eventInfo.title = title;
+
+        return slots;
+      }
+
+      function parseScheduleFromPath() {
+        const path = window.location.pathname;
+        const match = path.match(/\/readonly\/(.+)/);
+        if (!match) return null;
+
+        const compressed = match[1];
+        const flatStr = LZString.decompressFromEncodedURIComponent(compressed);
+        if (!flatStr) return null;
+
+        const [title, courtsStr, timesStr, playersStr] = flatStr.split("|");
+        const courts = courtsStr.split(",");
+        const times = timesStr.split(",");
+        const playersFlat = playersStr.split(",");
+
+        // Rebuild schedule
+        const slots = times.map((time, idx) => {
+          const matches = [];
+          for (let c = 0; c < courts.length; c++) {
+            const start = (idx * courts.length + c) * 4;
+            const matchPlayers = playersFlat.slice(start, start + 4).map((name, i) => ({
+              id: `p${start + i + 1}`,
+              name,
+            }));
+            matches.push({ id: `m${idx * courts.length + c + 1}`, court: c + 1, players: matchPlayers });
+          }
+          return { id: `s${idx + 1}`, startTime: time, matches };
+        });
+
+        courtNames = courts;
+        eventInfo.title = title;
+
+        return slots;
+      }
 
       function timeStringToMinutes(timeStr) {
         const [hours, minutes] = timeStr.split(":").map(Number);
@@ -343,7 +467,6 @@
           if (totalCollisions === TOTAL_PLAYERS * (SLOTS * COURTS * (PLAYERS_PER_MATCH - 1))) break;
         }
 
-        console.log(bestSchedule);
         return bestSchedule;
       }
 
@@ -719,28 +842,30 @@
           }
 
           // --- Double-click on the whole row = rename ---
-          playerDiv.addEventListener("dblclick", (e) => {
-            e.stopPropagation();
+          if (!isReadOnly) {
+            playerDiv.addEventListener("dblclick", (e) => {
+              e.stopPropagation();
 
-            const input = document.createElement("input");
-            input.type = "text";
-            input.value = player.name;
-            input.style.width = "100%";
+              const input = document.createElement("input");
+              input.type = "text";
+              input.value = player.name;
+              input.style.width = "100%";
 
-            nameSpan.replaceWith(input);
-            input.focus();
-            input.select();
+              nameSpan.replaceWith(input);
+              input.focus();
+              input.select();
 
-            const commit = () => renamePlayer(player.id, input.value);
+              const commit = () => renamePlayer(player.id, input.value);
 
-            input.addEventListener("blur", commit);
-            input.addEventListener("keydown", (e) => {
-              if (e.key === "Enter") commit();
-              if (e.key === "Escape") renderPlayerPalette();
+              input.addEventListener("blur", commit);
+              input.addEventListener("keydown", (e) => {
+                if (e.key === "Enter") commit();
+                if (e.key === "Escape") renderPlayerPalette();
+              });
+
+              input.addEventListener("mousedown", (e) => e.stopPropagation());
             });
-
-            input.addEventListener("mousedown", (e) => e.stopPropagation());
-          });
+          }
 
           attachDragEvents(playerDiv);
           listDiv.appendChild(playerDiv);
@@ -783,6 +908,10 @@
       let dragged = null;
 
       function attachDragEvents(el) {
+        if (isReadOnly) {
+          el.draggable = false;
+          return;
+        }
         el.addEventListener("dragstart", (e) => {
           dragged = el;
           e.dataTransfer.effectAllowed = "move";
@@ -1042,6 +1171,52 @@
 
       function navigateToHome() {
         window.location.href = "index";
+      }
+
+      if (isReadOnly) {
+        document.querySelector("header")?.remove();
+
+        palette.style.display = "none";
+        alertsPanel.style.display = "none";
+
+        // Also hide their toggle buttons
+        togglePaletteBtn.style.display = "none";
+        toggleAlertsBtn.style.display = "none";
+        document.querySelectorAll(".player").forEach((el) => {
+          el.style.cursor = "default";
+        });
+      }
+
+      async function getCryptoKey() {
+        const enc = new TextEncoder();
+        const keyMaterial = await crypto.subtle.importKey("raw", enc.encode(SECRET_KEY), "PBKDF2", false, ["deriveKey"]);
+
+        return crypto.subtle.deriveKey(
+          {
+            name: "PBKDF2",
+            salt: enc.encode("tourn-salt"),
+            iterations: 100000,
+            hash: "SHA-256",
+          },
+          keyMaterial,
+          { name: "AES-GCM", length: 256 },
+          false,
+          ["encrypt", "decrypt"],
+        );
+      }
+
+      function base64UrlEncode(bytes) {
+        return btoa(String.fromCharCode(...bytes))
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+      }
+
+      function base64UrlDecode(str) {
+        str = str.replace(/-/g, "+").replace(/_/g, "/");
+        const pad = str.length % 4 ? "=".repeat(4 - (str.length % 4)) : "";
+        const bin = atob(str + pad);
+        return Uint8Array.from(bin, (c) => c.charCodeAt(0));
       }
     </script>
   </body>
