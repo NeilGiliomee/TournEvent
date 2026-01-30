@@ -21,9 +21,6 @@
 
         .players {
             margin-top: 6px;
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 6px;
         }
 
         .player {
@@ -85,7 +82,7 @@
 
         #playerPalette {
             position: sticky;
-            top: 40px;
+            top: 100px;
             width: 220px;
             padding: 10px;
             background: #1f2633;
@@ -134,7 +131,7 @@
 
         .alerts-panel {
             position: sticky;
-            top: 40px;
+            top: 100px;
             width: 220px;
             padding: 10px;
             background: #1f2633;
@@ -155,6 +152,48 @@
         .alert-row:hover {
             background: #a87920;
         }
+        .team {
+    display: flex;
+    flex-direction:row;
+    justify-content: space-between;
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+}
+
+.vs {
+    grid-column: 1 / -1;
+    text-align: center;
+    font-weight: bold;
+    margin: 4px 0;
+}
+
+@media print {
+    .team {
+    border: 1px solid #000000;
+    }
+
+    header,
+    #playerPalette,
+    #alerts {
+        display: none !important;
+    }
+    .match {
+      padding: 0;
+    }
+    body, h2, h3 {
+      padding: 0;
+      margin: 0;
+    }
+    h3 {
+      margin-top: 8px;
+    }
+
+    #scheduleColumn .player {
+      padding:1
+    }
+}
+
+
 	</style>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 	<link rel="stylesheet" href="./css/style.css"/>
@@ -606,49 +645,70 @@
         `;
 
 				const playersDiv = matchDiv.querySelector(".players");
+playersDiv.innerHTML = "";
 
-				match.players.forEach((player, index) => {
-					const playerDiv = document.createElement("div");
-					playerDiv.className = "player";
-					playerDiv.textContent = player.name;
-					playerDiv.draggable = true;
+// Helper to render a single player (keeps ALL logic)
+function renderPlayer(player, index) {
+    const playerDiv = document.createElement("div");
+    playerDiv.className = "player";
+    playerDiv.textContent = player.name;
+    playerDiv.draggable = true;
 
-					playerDiv.dataset.matchId = match.id;
-					playerDiv.dataset.playerId = player.id;
-					playerDiv.dataset.playerIndex = index;
+    playerDiv.dataset.matchId = match.id;
+    playerDiv.dataset.playerId = player.id;
+    playerDiv.dataset.playerIndex = index;
 
-					const duplicateInMatch = match.players.filter((p) => p.id === player.id).length > 1;
-					const duplicateInSlot = slot.matches.filter((m) => m.id !== match.id).some((m) => m.players.some((p) => p.id === player.id));
+    // ---- Existing validation logic ----
+    const duplicateInMatch =
+        match.players.filter((p) => p.id === player.id).length > 1;
 
-					if (duplicateInMatch || duplicateInSlot) {
-						playerDiv.classList.add("invalid");
-					}
+    const duplicateInSlot = slot.matches
+        .filter((m) => m.id !== match.id)
+        .some((m) => m.players.some((p) => p.id === player.id));
 
-					const count = counts[player.id];
-					if (selectedPlayerIds.has(player.id)) {
-						if (count > average) playerDiv.classList.add("selected-player-above-average");
-						else if (count < average) playerDiv.classList.add("selected-player-below-average");
-						else playerDiv.classList.add("selected-player"); // neutral
-					}
+    if (duplicateInMatch || duplicateInSlot) {
+        playerDiv.classList.add("invalid");
+    }
 
-					// Remove classes if unselected
-					if (!selectedPlayerIds.has(player.id)) {
-						playerDiv.classList.remove("selected-player", "selected-player-below-average", "selected-player-above-average");
-					}
+    // ---- Existing selection logic ----
+    const count = counts[player.id];
+    if (selectedPlayerIds.has(player.id)) {
+        if (count > average) {
+            playerDiv.classList.add("selected-player-above-average");
+        } else if (count < average) {
+            playerDiv.classList.add("selected-player-below-average");
+        } else {
+            playerDiv.classList.add("selected-player");
+        }
+    }
 
-					attachDragEvents(playerDiv);
-					playersDiv.appendChild(playerDiv);
+    attachDragEvents(playerDiv);
+    return playerDiv;
+}
 
-					if (index === 1) {
-						const vsDiv = document.createElement("div");
-						vsDiv.textContent = "VS";
-						vsDiv.style.textAlign = "center";
-						vsDiv.style.fontWeight = "bold";
-						vsDiv.style.margin = "4px 0";
-						vsDiv.style.gridColumn = "1 / -1";
-						playersDiv.appendChild(vsDiv);
-					}
-				});
+// ---- Team A ----
+const teamA = document.createElement("div");
+teamA.className = "team";
+
+teamA.appendChild(renderPlayer(match.players[0], 0));
+teamA.appendChild(renderPlayer(match.players[1], 1));
+
+playersDiv.appendChild(teamA);
+
+// ---- VS ----
+const vsDiv = document.createElement("div");
+vsDiv.textContent = "VS";
+vsDiv.className = "vs";
+playersDiv.appendChild(vsDiv);
+
+// ---- Team B ----
+const teamB = document.createElement("div");
+teamB.className = "team";
+
+teamB.appendChild(renderPlayer(match.players[2], 2));
+teamB.appendChild(renderPlayer(match.players[3], 3));
+
+playersDiv.appendChild(teamB);
 
 				matchesDiv.appendChild(matchDiv);
 			});
