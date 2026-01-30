@@ -17,6 +17,7 @@
             border-radius: 8px;
             padding: 10px;
             background: #364153;
+            width: 250px;
         }
 
         .players {
@@ -34,7 +35,8 @@
 
         #scheduleColumn .player {
             /* border: 1px solid #ddd; */
-            padding: 12px;
+            padding: 8px;
+            margin: 4px;
         }
 
         .player.invalid {
@@ -167,6 +169,31 @@
     margin: 4px 0;
 }
 
+/* Wrapper when two-column mode is on */
+.schedule-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+     
+}
+
+/* .schedule-column + .schedule-column {
+    border-left: 1px solid #FFFFFF;
+    margin-left: 10px;
+    padding-left: 10px;
+} */
+
+
+.schedule-column {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    max-width: 600px;
+}
+h3 {
+      margin-top: 0px;
+    }
+
 @media print {
     .team {
     border: 1px solid #000000;
@@ -180,12 +207,14 @@
     .match {
       padding: 0;
     }
-    body, h2, h3 {
+    body, h2 {
       padding: 0;
       margin: 0;
     }
     h3 {
-      margin-top: 8px;
+      padding: 0;
+      margin-top: 0px;
+      margin-bottom: 4px;
     }
 
     #scheduleColumn .player {
@@ -221,25 +250,24 @@
 	<!-- Left side buttons -->
 	<button onclick="navigateToHome()">[Home]</button>
 	<button onclick="generateReadOnlyUrl()">[Share Read-Only Link]</button>
-	<button id="togglePaletteBtn">[Hide Players]</button>
-	<button id="toggleAlertsBtn">[Hide Alerts]</button>
 
 	<!-- Right side controls -->
 	<div style="margin-left: auto; display: flex; align-items: center; gap: 12px">
 		<button onclick="undoSwap()">[Undo swap]</button>
 		<button id="globalSwapBtn" onclick="toggleGlobalSwap()">[Global player swap: No]</button>
+    <button id="toggleRoundColumnsBtn">[Two Columns: Off]</button>
 	</div>
 </header>
 
 <div style="display: flex; gap: 20px">
 	<!-- Player Palette -->
 	<div id="playerPalette">
-		<h3>Players</h3>
-		<div id="playerList"></div>
-	</div>
+    <h3>Players (<span id="playerCount"></span>)</h3>
+    <div id="playerList"></div>
+</div>
 
 	<!-- Schedule Column -->
-	<div id="scheduleColumn" style="flex: 1; max-width: 600px">
+	<div id="scheduleColumn" style="flex: 1; max-width: 1200px">
 		<h2>Schedule</h2>
 		<div id="schedule"></div>
 	</div>
@@ -262,6 +290,16 @@
 	const queryString = window.location.search;
 	const hash = window.location.hash.substring(1);
 	let globalSwap = false;
+
+  let twoColumnRounds = false;
+
+document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () => {
+    twoColumnRounds = !twoColumnRounds;
+    document.getElementById("toggleRoundColumnsBtn").textContent =
+        `[Two Columns: ${twoColumnRounds ? "On" : "Off"}]`;
+    render();
+});
+
 
 	const params = new URLSearchParams(queryString ? queryString : hash);
 	const isReadOnly = params.get("data");
@@ -302,7 +340,9 @@
 	const togglePaletteBtn = document.getElementById("togglePaletteBtn");
 	const toggleAlertsBtn = document.getElementById("toggleAlertsBtn");
 
-	togglePaletteBtn.addEventListener("click", () => {
+
+  
+	togglePaletteBtn?.addEventListener("click", () => {
 		if (palette.style.display === "none") {
 			palette.style.display = "block";
 			togglePaletteBtn.textContent = "[Hide Players]";
@@ -312,7 +352,7 @@
 		}
 	});
 
-	toggleAlertsBtn.addEventListener("click", () => {
+	toggleAlertsBtn?.addEventListener("click", () => {
 		if (alertsPanel.style.display === "none") {
 			alertsPanel.style.display = "block";
 			toggleAlertsBtn.textContent = "[Hide Alerts]";
@@ -621,8 +661,30 @@
 	// ---------------------------
 	function render() {
 		const {counts, average} = getPlayerGameStats();
-		const root = document.getElementById("schedule");
-		root.innerHTML = "";
+const root = document.getElementById("schedule");
+root.innerHTML = "";
+
+// Always create left column
+let leftCol = document.createElement("div");
+leftCol.className = "schedule-column";
+
+let rightCol = null;
+
+if (twoColumnRounds) {
+    const wrapper = document.createElement("div");
+    wrapper.className = "schedule-columns";
+
+    rightCol = document.createElement("div");
+    rightCol.className = "schedule-column";
+
+    wrapper.appendChild(leftCol);
+    wrapper.appendChild(rightCol);
+    root.appendChild(wrapper);
+} else {
+    // Single-column mode = left column only
+    root.appendChild(leftCol);
+}
+
 
 		schedule.forEach((slot, i) => {
 			const slotDiv = document.createElement("div");
@@ -713,7 +775,17 @@ playersDiv.appendChild(teamB);
 				matchesDiv.appendChild(matchDiv);
 			});
 
-			root.appendChild(slotDiv);
+if (!twoColumnRounds) {
+    // All rounds go into left column
+    leftCol.appendChild(slotDiv);
+} else {
+    const half = Math.ceil(schedule.length / 2);
+    if (i < half) {
+        leftCol.appendChild(slotDiv);
+    } else {
+        rightCol.appendChild(slotDiv);
+    }
+}
 		});
 	}
 
@@ -791,6 +863,10 @@ playersDiv.appendChild(teamB);
 		listDiv.appendChild(toggleRow);
 
 		const {counts, average} = getPlayerGameStats();
+
+    const countEl = document.getElementById("playerCount");
+    countEl.textContent = players.length;
+
 
 		const sortedPlayers = [...players].sort((a, b) => {
 			const countA = counts[a.id] ?? 0;
@@ -1217,8 +1293,8 @@ playersDiv.appendChild(teamB);
 		alertsPanel.style.display = "none";
 
 		// Also hide their toggle buttons
-		togglePaletteBtn.style.display = "none";
-		toggleAlertsBtn.style.display = "none";
+    togglePaletteBtn && (togglePaletteBtn.style.display = "none");
+		toggleAlertsBtn && (toggleAlertsBtn.style.display = "none");
 		document.querySelectorAll(".player").forEach((el) => {
 			el.style.cursor = "default";
 		});
