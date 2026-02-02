@@ -236,10 +236,17 @@
           return;
         }
         syncListWithInputs();
-        const encodedPlayers = encodeURIComponent(JSON.stringify(list));
-        const encodedEventInfo = encodeURIComponent(JSON.stringify(eventInfo));
+        const title = eventInfo.title || "";
+        const startTime = eventInfo.startTime;
+        const endTime = eventInfo.endTime;
+        const matchLength = eventInfo.matchLength;
+        const courtCount = eventInfo.courtCount;
+        const playersStr = list.join();
+        const seed = Date.now();
 
-        const url = `event-manage.html#playerList=${encodedPlayers}&eventInfo=${encodedEventInfo}`;
+        const flatStr = `${title}|${startTime}|${endTime}|${matchLength}|${courtCount}|${seed}|${playersStr}`;
+
+        const url = `event-manage.html#data=${encodeURIComponent(flatStr)}`;
         window.location.href = url;
       }
 
