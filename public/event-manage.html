@@ -211,6 +211,10 @@
                 padding: 0;
             }
 
+            html, body {
+                color: #000 !important;
+            }
+
             body, h2 {
                 padding: 0;
                 margin: 0;
@@ -283,28 +287,11 @@
 </body>
 
 <script>
-	const GAME_LENGTH_MIN = 20;
-	const COURTS = 2;
-	const PLAYERS_PER_MATCH = 4;
-	const TOTAL_PLAYERS = 16;
-	const TOTAL_MATCHES = 12;
-	const SLOTS = TOTAL_MATCHES / COURTS;
-	const MAX_UNDO = 100;
-	const SECRET_KEY = "TournEvent-ReadOnly-v3";
-
 	const queryString = window.location.search;
 	const hash = window.location.hash.substring(1);
 	let globalSwap = false;
 
 	let twoColumnRounds = false;
-
-	document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () => {
-		twoColumnRounds = !twoColumnRounds;
-		document.getElementById("toggleRoundColumnsBtn").textContent =
-			`[Two Columns: ${twoColumnRounds ? "On" : "Off"}]`;
-		render();
-	});
-
 
 	const params = new URLSearchParams(queryString ? queryString : hash);
 	const isReadOnly = params.get("data");
@@ -314,6 +301,14 @@
 
 	console.log("Players:", playerNames);
 	console.log("Event Info:", eventInfo);
+
+	const GAME_LENGTH_MIN = 20;
+	const COURTS = 2;
+	const PLAYERS_PER_MATCH = 4;
+	const TOTAL_PLAYERS = 16;
+	const TOTAL_MATCHES = 12;
+	const SLOTS = TOTAL_MATCHES / COURTS;
+	const MAX_UNDO = 100;
 
 	let playerSortMode = "alpha"; // "alpha" | "games-desc" | "games-asc"
 
@@ -344,6 +339,13 @@
 	const togglePaletteBtn = document.getElementById("togglePaletteBtn");
 	const toggleAlertsBtn = document.getElementById("toggleAlertsBtn");
 
+
+	document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () => {
+		twoColumnRounds = !twoColumnRounds;
+		document.getElementById("toggleRoundColumnsBtn").textContent =
+			`[Two Columns: ${twoColumnRounds ? "On" : "Off"}]`;
+		render();
+	});
 
 	togglePaletteBtn?.addEventListener("click", () => {
 		if (palette.style.display === "none") {
