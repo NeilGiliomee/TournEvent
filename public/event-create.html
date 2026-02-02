@@ -86,7 +86,7 @@
       const list = param ? JSON.parse(decodeURIComponent(param)) : playerListStorage ? playerListStorage : [];
 
       let eventInfo = {
-        title: title ? decodeURIComponent(title) : null,
+        title: title ? decodeURIComponent(title) : "Tournament",
         startTime: "18:00",
         endTime: "20:00",
         tournamentLength: 120,
@@ -244,9 +244,17 @@
         const playersStr = list.join();
         const seed = Date.now();
 
-        const flatStr = `${title}|${startTime}|${endTime}|${matchLength}|${courtCount}|${seed}|${playersStr}`;
+        const params = new URLSearchParams({
+          title,
+          startTime,
+          endTime,
+          matchLength,
+          courtCount,
+          seed,
+          players: playersStr,
+        });
 
-        const url = `event-manage.html#data=${encodeURIComponent(flatStr)}`;
+        const url = `event-manage.html#${params.toString()}`;
         window.location.href = url;
       }
 

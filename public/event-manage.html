@@ -275,7 +275,7 @@
 
         <!-- Schedule Column -->
         <div id="scheduleColumn" style="flex: 1; max-width: 1200px">
-          <h2>Schedule</h2>
+          <h2 id="scheduleTitle">Schedule</h2>
           <div id="schedule"></div>
         </div>
 
@@ -308,17 +308,19 @@
       let eventInfo = {};
       let SEED = Date.now();
 
-      if (!flatData) {
+      if (!params.toString()) {
         console.warn("No data found in URL");
       } else {
-        // Decode + split
-        const decoded = decodeURIComponent(flatData);
-        console.log(decoded.split("|"));
-        const [title, startTime, endTime, matchLength, courtCount, seed, playersStr] = decoded.split("|");
-
-        // Rebuild objects
+        const title = params.get("title");
+        const startTime = params.get("startTime");
+        const endTime = params.get("endTime");
+        const matchLength = params.get("matchLength");
+        const courtCount = params.get("courtCount");
+        const seed = params.get("seed");
+        const playersStr = params.get("players");
 
         playerNames = playersStr ? playersStr.split(",").filter(Boolean) : [];
+
         eventInfo = {
           title,
           startTime,
@@ -326,7 +328,8 @@
           matchLength: Number(matchLength),
           courtCount: Number(courtCount),
         };
-        SEED = seed;
+
+        SEED = seed ? Number(seed) : Date.now();
       }
 
       console.log("Players:", playerNames);
@@ -357,10 +360,10 @@
       renderPlayerPalette();
       renderAlerts();
       console.log(schedule);
-      console.log(eventInfo);
 
       if (eventInfo?.title) {
         document.title = eventInfo.title;
+        document.getElementById("scheduleTitle").textContent = eventInfo.title;
       } else {
         document.title = "Tournament Scheduler";
       }
