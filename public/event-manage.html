@@ -301,7 +301,7 @@
       let twoColumnRounds = false;
 
       const params = new URLSearchParams(queryString ? queryString : hash);
-      const isReadOnly = params.get("dataRead");
+      const isReadOnly = params.get("data");
       const flatData = params.get("data");
 
       let playerNames = [];
@@ -355,7 +355,7 @@
       let schedule = [];
       let selectedPlayerIds = new Set();
 
-      schedule = parseScheduleFromUrl(params.get("dataRead")) || generateSchedule();
+      schedule = parseScheduleFromUrl(params.get("data")) || generateSchedule();
       render();
       renderPlayerPalette();
       renderAlerts();
@@ -412,7 +412,7 @@
         const compressed = LZString.compressToEncodedURIComponent(flatStr);
 
         // Put in query param
-        const url = `${window.location.origin}${window.location.pathname}?dataRead=${compressed}`;
+        const url = `${window.location.origin}${window.location.pathname}?data=${compressed}`;
 
         window.open(url, "_blank");
       }
