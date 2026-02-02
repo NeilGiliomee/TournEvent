@@ -29,7 +29,7 @@
 
         <label>
           Tournament name
-          <input style="width: 400px" id="eventNameInput" onblur="updateEventInfo({ ...eventInfo, eventName: this.value })" class="settings-input" />
+          <input style="width: 400px" id="titleInput" onblur="updateEventInfo({ ...eventInfo, title: this.value })" class="settings-input" />
         </label>
 
         <label>
@@ -86,7 +86,7 @@
       const list = param ? JSON.parse(decodeURIComponent(param)) : playerListStorage ? playerListStorage : [];
 
       let eventInfo = {
-        eventName: title ? decodeURIComponent(title) : null,
+        title: title ? decodeURIComponent(title) : null,
         startTime: "18:00",
         endTime: "20:00",
         tournamentLength: 120,
@@ -98,7 +98,7 @@
       let playerCountList = 0;
 
       function populateDefaultSettings() {
-        document.getElementById("eventNameInput").value = eventInfo.eventName || "";
+        document.getElementById("titleInput").value = eventInfo.title || "";
         document.getElementById("startTimeInput").value = eventInfo.startTime;
         document.getElementById("endTimeInput").value = eventInfo.endTime;
         document.getElementById("matchLengthInput").value = eventInfo.matchLength;
