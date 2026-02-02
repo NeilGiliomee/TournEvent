@@ -154,73 +154,78 @@
         .alert-row:hover {
             background: #a87920;
         }
+
         .team {
-    display: flex;
-    flex-direction:row;
-    justify-content: space-between;
-    grid-template-columns: repeat(2, 1fr);
-    width: 100%;
-}
+            display: flex;
+            flex-direction: row;
+            justify-content: space-between;
+            grid-template-columns: repeat(2, 1fr);
+            width: 100%;
+        }
 
-.vs {
-    grid-column: 1 / -1;
-    text-align: center;
-    font-weight: bold;
-    margin: 4px 0;
-}
+        .vs {
+            grid-column: 1 / -1;
+            text-align: center;
+            font-weight: bold;
+            margin: 4px 0;
+        }
 
-/* Wrapper when two-column mode is on */
-.schedule-columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-     
-}
+        /* Wrapper when two-column mode is on */
+        .schedule-columns {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
 
-/* .schedule-column + .schedule-column {
-    border-left: 1px solid #FFFFFF;
-    margin-left: 10px;
-    padding-left: 10px;
-} */
+        }
+
+        /* .schedule-column + .schedule-column {
+			border-left: 1px solid #FFFFFF;
+			margin-left: 10px;
+			padding-left: 10px;
+		} */
 
 
-.schedule-column {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-    max-width: 600px;
-}
-h3 {
-      margin-top: 0px;
-    }
+        .schedule-column {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+            max-width: 600px;
+        }
 
-@media print {
-    .team {
-    border: 1px solid #000000;
-    }
+        h3 {
+            margin-top: 0px;
+        }
 
-    header,
-    #playerPalette,
-    #alerts {
-        display: none !important;
-    }
-    .match {
-      padding: 0;
-    }
-    body, h2 {
-      padding: 0;
-      margin: 0;
-    }
-    h3 {
-      padding: 0;
-      margin-top: 0px;
-      margin-bottom: 4px;
-    }
+        @media print {
+            .team {
+                border: 1px solid #000000;
+            }
 
-    #scheduleColumn .player {
-      padding:1
-    }
-}
+            header,
+            #playerPalette,
+            #alerts {
+                display: none !important;
+            }
+
+            .match {
+                padding: 0;
+            }
+
+            body, h2 {
+                padding: 0;
+                margin: 0;
+            }
+
+            h3 {
+                padding: 0;
+                margin-top: 0px;
+                margin-bottom: 4px;
+            }
+
+            #scheduleColumn .player {
+                padding: 1
+            }
+        }
 
 
 	</style>
@@ -255,16 +260,16 @@ h3 {
 	<div style="margin-left: auto; display: flex; align-items: center; gap: 12px">
 		<button onclick="undoSwap()">[Undo swap]</button>
 		<button id="globalSwapBtn" onclick="toggleGlobalSwap()">[Global player swap: No]</button>
-    <button id="toggleRoundColumnsBtn">[Two Columns: Off]</button>
+		<button id="toggleRoundColumnsBtn">[Two Columns: Off]</button>
 	</div>
 </header>
 
 <div style="display: flex; gap: 20px">
 	<!-- Player Palette -->
 	<div id="playerPalette">
-    <h3>Players (<span id="playerCount"></span>)</h3>
-    <div id="playerList"></div>
-</div>
+		<h3>Players (<span id="playerCount"></span>)</h3>
+		<div id="playerList"></div>
+	</div>
 
 	<!-- Schedule Column -->
 	<div id="scheduleColumn" style="flex: 1; max-width: 1200px">
@@ -291,14 +296,14 @@ h3 {
 	const hash = window.location.hash.substring(1);
 	let globalSwap = false;
 
-  let twoColumnRounds = false;
+	let twoColumnRounds = false;
 
-document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () => {
-    twoColumnRounds = !twoColumnRounds;
-    document.getElementById("toggleRoundColumnsBtn").textContent =
-        `[Two Columns: ${twoColumnRounds ? "On" : "Off"}]`;
-    render();
-});
+	document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () => {
+		twoColumnRounds = !twoColumnRounds;
+		document.getElementById("toggleRoundColumnsBtn").textContent =
+			`[Two Columns: ${twoColumnRounds ? "On" : "Off"}]`;
+		render();
+	});
 
 
 	const params = new URLSearchParams(queryString ? queryString : hash);
@@ -333,7 +338,6 @@ document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () =>
 	}
 
 
-
 	const palette = document.getElementById("playerPalette");
 	const alertsPanel = document.getElementById("alerts");
 
@@ -341,7 +345,6 @@ document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () =>
 	const toggleAlertsBtn = document.getElementById("toggleAlertsBtn");
 
 
-  
 	togglePaletteBtn?.addEventListener("click", () => {
 		if (palette.style.display === "none") {
 			palette.style.display = "block";
@@ -661,29 +664,29 @@ document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () =>
 	// ---------------------------
 	function render() {
 		const {counts, average} = getPlayerGameStats();
-const root = document.getElementById("schedule");
-root.innerHTML = "";
+		const root = document.getElementById("schedule");
+		root.innerHTML = "";
 
 // Always create left column
-let leftCol = document.createElement("div");
-leftCol.className = "schedule-column";
+		let leftCol = document.createElement("div");
+		leftCol.className = "schedule-column";
 
-let rightCol = null;
+		let rightCol = null;
 
-if (twoColumnRounds) {
-    const wrapper = document.createElement("div");
-    wrapper.className = "schedule-columns";
+		if (twoColumnRounds) {
+			const wrapper = document.createElement("div");
+			wrapper.className = "schedule-columns";
 
-    rightCol = document.createElement("div");
-    rightCol.className = "schedule-column";
+			rightCol = document.createElement("div");
+			rightCol.className = "schedule-column";
 
-    wrapper.appendChild(leftCol);
-    wrapper.appendChild(rightCol);
-    root.appendChild(wrapper);
-} else {
-    // Single-column mode = left column only
-    root.appendChild(leftCol);
-}
+			wrapper.appendChild(leftCol);
+			wrapper.appendChild(rightCol);
+			root.appendChild(wrapper);
+		} else {
+			// Single-column mode = left column only
+			root.appendChild(leftCol);
+		}
 
 
 		schedule.forEach((slot, i) => {
@@ -707,85 +710,85 @@ if (twoColumnRounds) {
         `;
 
 				const playersDiv = matchDiv.querySelector(".players");
-playersDiv.innerHTML = "";
+				playersDiv.innerHTML = "";
 
 // Helper to render a single player (keeps ALL logic)
-function renderPlayer(player, index) {
-    const playerDiv = document.createElement("div");
-    playerDiv.className = "player";
-    playerDiv.textContent = player.name;
-    playerDiv.draggable = true;
+				function renderPlayer(player, index) {
+					const playerDiv = document.createElement("div");
+					playerDiv.className = "player";
+					playerDiv.textContent = player.name;
+					playerDiv.draggable = true;
 
-    playerDiv.dataset.matchId = match.id;
-    playerDiv.dataset.playerId = player.id;
-    playerDiv.dataset.playerIndex = index;
+					playerDiv.dataset.matchId = match.id;
+					playerDiv.dataset.playerId = player.id;
+					playerDiv.dataset.playerIndex = index;
 
-    // ---- Existing validation logic ----
-    const duplicateInMatch =
-        match.players.filter((p) => p.id === player.id).length > 1;
+					// ---- Existing validation logic ----
+					const duplicateInMatch =
+						match.players.filter((p) => p.id === player.id).length > 1;
 
-    const duplicateInSlot = slot.matches
-        .filter((m) => m.id !== match.id)
-        .some((m) => m.players.some((p) => p.id === player.id));
+					const duplicateInSlot = slot.matches
+						.filter((m) => m.id !== match.id)
+						.some((m) => m.players.some((p) => p.id === player.id));
 
-    if (duplicateInMatch || duplicateInSlot) {
-        playerDiv.classList.add("invalid");
-    }
+					if (duplicateInMatch || duplicateInSlot) {
+						playerDiv.classList.add("invalid");
+					}
 
-    // ---- Existing selection logic ----
-    const count = counts[player.id];
-    if (selectedPlayerIds.has(player.id)) {
-        if (count > average) {
-            playerDiv.classList.add("selected-player-above-average");
-        } else if (count < average) {
-            playerDiv.classList.add("selected-player-below-average");
-        } else {
-            playerDiv.classList.add("selected-player");
-        }
-    }
+					// ---- Existing selection logic ----
+					const count = counts[player.id];
+					if (selectedPlayerIds.has(player.id)) {
+						if (count > average) {
+							playerDiv.classList.add("selected-player-above-average");
+						} else if (count < average) {
+							playerDiv.classList.add("selected-player-below-average");
+						} else {
+							playerDiv.classList.add("selected-player");
+						}
+					}
 
-    attachDragEvents(playerDiv);
-    return playerDiv;
-}
+					attachDragEvents(playerDiv);
+					return playerDiv;
+				}
 
 // ---- Team A ----
-const teamA = document.createElement("div");
-teamA.className = "team";
+				const teamA = document.createElement("div");
+				teamA.className = "team";
 
-teamA.appendChild(renderPlayer(match.players[0], 0));
-teamA.appendChild(renderPlayer(match.players[1], 1));
+				teamA.appendChild(renderPlayer(match.players[0], 0));
+				teamA.appendChild(renderPlayer(match.players[1], 1));
 
-playersDiv.appendChild(teamA);
+				playersDiv.appendChild(teamA);
 
 // ---- VS ----
-const vsDiv = document.createElement("div");
-vsDiv.textContent = "VS";
-vsDiv.className = "vs";
-playersDiv.appendChild(vsDiv);
+				const vsDiv = document.createElement("div");
+				vsDiv.textContent = "VS";
+				vsDiv.className = "vs";
+				playersDiv.appendChild(vsDiv);
 
 // ---- Team B ----
-const teamB = document.createElement("div");
-teamB.className = "team";
+				const teamB = document.createElement("div");
+				teamB.className = "team";
 
-teamB.appendChild(renderPlayer(match.players[2], 2));
-teamB.appendChild(renderPlayer(match.players[3], 3));
+				teamB.appendChild(renderPlayer(match.players[2], 2));
+				teamB.appendChild(renderPlayer(match.players[3], 3));
 
-playersDiv.appendChild(teamB);
+				playersDiv.appendChild(teamB);
 
 				matchesDiv.appendChild(matchDiv);
 			});
 
-if (!twoColumnRounds) {
-    // All rounds go into left column
-    leftCol.appendChild(slotDiv);
-} else {
-    const half = Math.ceil(schedule.length / 2);
-    if (i < half) {
-        leftCol.appendChild(slotDiv);
-    } else {
-        rightCol.appendChild(slotDiv);
-    }
-}
+			if (!twoColumnRounds) {
+				// All rounds go into left column
+				leftCol.appendChild(slotDiv);
+			} else {
+				const half = Math.ceil(schedule.length / 2);
+				if (i < half) {
+					leftCol.appendChild(slotDiv);
+				} else {
+					rightCol.appendChild(slotDiv);
+				}
+			}
 		});
 	}
 
@@ -864,8 +867,8 @@ if (!twoColumnRounds) {
 
 		const {counts, average} = getPlayerGameStats();
 
-    const countEl = document.getElementById("playerCount");
-    countEl.textContent = players.length;
+		const countEl = document.getElementById("playerCount");
+		countEl.textContent = players.length;
 
 
 		const sortedPlayers = [...players].sort((a, b) => {
@@ -1293,7 +1296,7 @@ if (!twoColumnRounds) {
 		alertsPanel.style.display = "none";
 
 		// Also hide their toggle buttons
-    togglePaletteBtn && (togglePaletteBtn.style.display = "none");
+		togglePaletteBtn && (togglePaletteBtn.style.display = "none");
 		toggleAlertsBtn && (toggleAlertsBtn.style.display = "none");
 		document.querySelectorAll(".player").forEach((el) => {
 			el.style.cursor = "default";
