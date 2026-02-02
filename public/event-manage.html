@@ -255,6 +255,7 @@
         "
       >
         <!-- Left side buttons -->
+        <button onclick="navigateCreate()">[Create]</button>
         <button onclick="navigateToHome()">[Home]</button>
         <button onclick="generateReadOnlyUrl()">[Share Read-Only Link]</button>
 
@@ -263,6 +264,7 @@
           <button onclick="undoSwap()">[Undo swap]</button>
           <button id="globalSwapBtn" onclick="toggleGlobalSwap()">[Global player swap: No]</button>
           <button id="toggleRoundColumnsBtn">[Two Columns: Off]</button>
+          <button id="randomSeedBtn">[Randomize Seed]</button>
         </div>
       </header>
 
@@ -302,14 +304,23 @@
 
       const params = new URLSearchParams(queryString ? queryString : hash);
       const isReadOnly = params.get("data");
-      const flatData = params.get("data");
 
       let playerNames = [];
-      let eventInfo = {};
       let SEED = Date.now();
 
-      if (!params.toString()) {
-        console.warn("No data found in URL");
+      const PLAYERS_PER_MATCH = 4;
+      const MAX_UNDO = 100;
+
+      let TITLE = "Tournament";
+      let GAME_LENGTH_MIN = 20;
+      let COURTS = 2;
+      let TOTAL_PLAYERS = 16;
+      let TOTAL_MATCHES = 12;
+      let START_TIME = "18:00";
+      let SLOTS = TOTAL_MATCHES / COURTS;
+
+      if (isReadOnly) {
+        console.log("Reading from data param");
       } else {
         const title = params.get("title");
         const startTime = params.get("startTime");
@@ -320,31 +331,30 @@
         const playersStr = params.get("players");
 
         playerNames = playersStr ? playersStr.split(",").filter(Boolean) : [];
-
-        eventInfo = {
-          title,
-          startTime,
-          endTime,
-          matchLength: Number(matchLength),
-          courtCount: Number(courtCount),
-        };
-
         SEED = seed ? Number(seed) : Date.now();
+
+        const startMinutes = timeStringToMinutes(startTime);
+        const endMinutes = timeStringToMinutes(endTime);
+        const TOTAL_MATCHES = courtCount * ((endMinutes - startMinutes) / Number(matchLength));
+
+        TITLE = title;
+        GAME_LENGTH_MIN = Number(matchLength);
+        COURTS = courtCount;
+        TOTAL_PLAYERS = playerNames.length;
+        START_TIME = startTime;
+        SLOTS = TOTAL_MATCHES / COURTS;
       }
 
       console.log("Players:", playerNames);
-      console.log("Event Info:", eventInfo);
+      console.log("GAME_LENGTH_MIN:", GAME_LENGTH_MIN);
+      console.log("COURTS:", COURTS);
+      console.log("TOTAL_PLAYERS:", TOTAL_PLAYERS);
+      console.log("START_TIME:", START_TIME);
+      console.log("SLOTS:", SLOTS);
       console.log("SEED:", SEED);
+      console.log("TOTAL_MATCHES:", TOTAL_MATCHES);
 
       const rand = mulberry32(SEED);
-
-      const GAME_LENGTH_MIN = 20;
-      const COURTS = 2;
-      const PLAYERS_PER_MATCH = 4;
-      const TOTAL_PLAYERS = 16;
-      const TOTAL_MATCHES = 12;
-      const SLOTS = TOTAL_MATCHES / COURTS;
-      const MAX_UNDO = 100;
 
       let playerSortMode = "alpha"; // "alpha" | "games-desc" | "games-asc"
 
@@ -361,18 +371,31 @@
       renderAlerts();
       console.log(schedule);
 
-      if (eventInfo?.title) {
-        document.title = eventInfo.title;
-        document.getElementById("scheduleTitle").textContent = eventInfo.title;
-      } else {
-        document.title = "Tournament Scheduler";
-      }
+      document.title = TITLE;
+      document.getElementById("scheduleTitle").textContent = TITLE;
 
       const palette = document.getElementById("playerPalette");
       const alertsPanel = document.getElementById("alerts");
 
       const togglePaletteBtn = document.getElementById("togglePaletteBtn");
       const toggleAlertsBtn = document.getElementById("toggleAlertsBtn");
+
+      document.getElementById("randomSeedBtn").addEventListener("click", () => {
+        SEED = Math.floor(Math.random() * 1000000000);
+        console.log("New SEED:", SEED);
+
+        params.set("seed", SEED);
+
+        let newUrl;
+        if (queryString) {
+          newUrl = `${window.location.pathname}?${params.toString()}`;
+        } else {
+          newUrl = `${window.location.pathname}#${params.toString()}`;
+        }
+
+        window.location.href = newUrl;
+        window.location.reload();
+      });
 
       document.getElementById("toggleRoundColumnsBtn").addEventListener("click", () => {
         twoColumnRounds = !twoColumnRounds;
@@ -401,12 +424,11 @@
       });
 
       function generateReadOnlyUrl() {
-        const title = eventInfo.title || "Tournament";
         const courtsStr = courtNames.join(",");
         const timesStr = schedule.map((s) => s.startTime).join(",");
         const playersStr = schedule.flatMap((s) => s.matches.flatMap((m) => m.players.map((p) => p.name))).join(",");
 
-        const flatStr = `${title}|${courtsStr}|${timesStr}|${playersStr}`;
+        const flatStr = `${TITLE}|${courtsStr}|${timesStr}|${playersStr}`;
 
         // Compress to URL-safe string
         const compressed = LZString.compressToEncodedURIComponent(flatStr);
@@ -423,6 +445,7 @@
         const flatStr = LZString.decompressFromEncodedURIComponent(compressed);
         if (!flatStr) return null;
 
+        console.log(flatStr);
         const [title, courtsStr, timesStr, playersStr] = flatStr.split("|");
         console.log(title, courtsStr, timesStr, playersStr);
 
@@ -445,41 +468,7 @@
         });
 
         courtNames = courts;
-        eventInfo.title = title;
-
-        return slots;
-      }
-
-      function parseScheduleFromPath() {
-        const path = window.location.pathname;
-        const match = path.match(/\/readonly\/(.+)/);
-        if (!match) return null;
-
-        const compressed = match[1];
-        const flatStr = LZString.decompressFromEncodedURIComponent(compressed);
-        if (!flatStr) return null;
-
-        const [title, courtsStr, timesStr, playersStr] = flatStr.split("|");
-        const courts = courtsStr.split(",");
-        const times = timesStr.split(",");
-        const playersFlat = playersStr.split(",");
-
-        // Rebuild schedule
-        const slots = times.map((time, idx) => {
-          const matches = [];
-          for (let c = 0; c < courts.length; c++) {
-            const start = (idx * courts.length + c) * 4;
-            const matchPlayers = playersFlat.slice(start, start + 4).map((name, i) => ({
-              id: `p${start + i + 1}`,
-              name,
-            }));
-            matches.push({ id: `m${idx * courts.length + c + 1}`, court: c + 1, players: matchPlayers });
-          }
-          return { id: `s${idx + 1}`, startTime: time, matches };
-        });
-
-        courtNames = courts;
-        eventInfo.title = title;
+        TITLE = title;
 
         return slots;
       }
@@ -505,7 +494,7 @@
 
         function generateSingleSchedule() {
           let matchId = 1;
-          let minutes = timeStringToMinutes(eventInfo.startTime);
+          let minutes = timeStringToMinutes(START_TIME);
           const slots = [];
           const playerCounts = {};
           players.forEach((p) => (playerCounts[p.id] = 0));
@@ -577,7 +566,7 @@
             }));
 
             let matchId = 1;
-            let minutes = timeStringToMinutes(eventInfo.startTime);
+            let minutes = timeStringToMinutes(START_TIME);
             const slots = [];
 
             const gamesPerPlayer = (TOTAL_MATCHES * PLAYERS_PER_MATCH) / TOTAL_PLAYERS;
@@ -1316,6 +1305,9 @@
 
       function navigateToHome() {
         window.location.href = "index";
+      }
+      function navigateCreate() {
+        window.location.href = "event-create.html";
       }
 
       if (isReadOnly) {

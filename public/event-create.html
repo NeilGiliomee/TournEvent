@@ -29,17 +29,17 @@
 
         <label>
           Tournament name
-          <input style="width: 400px" id="titleInput" onblur="updateEventInfo({ ...eventInfo, title: this.value })" class="settings-input" />
+          <input style="width: 400px" id="titleInput" oninput="updateEventInfo({ ...eventInfo, title: this.value })" class="settings-input" />
         </label>
 
         <label>
           Start Time
-          <input id="startTimeInput" type="time" onblur="updateEventInfo({ ...eventInfo, startTime: this.value })" class="settings-input" />
+          <input id="startTimeInput" type="time" oninput="updateEventInfo({ ...eventInfo, startTime: this.value })" class="settings-input" />
         </label>
 
         <label>
           End Time
-          <input id="endTimeInput" type="time" onblur="updateEventInfo({ ...eventInfo, endTime: this.value })" class="settings-input" />
+          <input id="endTimeInput" type="time" oninput="updateEventInfo({ ...eventInfo, endTime: this.value })" class="settings-input" />
         </label>
 
         <label>
@@ -47,7 +47,7 @@
           <input
             id="matchLengthInput"
             type="number"
-            onblur="updateEventInfo({ ...eventInfo, matchLength: Number(this.value) })"
+            oninput="updateEventInfo({ ...eventInfo, matchLength: Number(this.value) })"
             class="settings-input number-input"
           />
         </label>
@@ -57,7 +57,7 @@
           <input
             id="courtCountInput"
             type="number"
-            onblur="updateEventInfo({ ...eventInfo, courtCount: Number(this.value) })"
+            oninput="updateEventInfo({ ...eventInfo, courtCount: Number(this.value) })"
             class="settings-input number-input"
           />
         </label>
@@ -83,9 +83,12 @@
       const playerListStorage = JSON.parse(localStorage.getItem("playerList"));
       console.log(playerListStorage);
 
-      const list = param ? JSON.parse(decodeURIComponent(param)) : playerListStorage ? playerListStorage : [];
+      const storedPlayers = JSON.parse(localStorage.getItem("playerList"));
+      const list = param ? JSON.parse(decodeURIComponent(param)) : storedPlayers ? storedPlayers : [];
 
-      let eventInfo = {
+      const storedEventInfo = JSON.parse(localStorage.getItem("eventInfo"));
+
+      let eventInfo = storedEventInfo || {
         title: title ? decodeURIComponent(title) : "Tournament",
         startTime: "18:00",
         endTime: "20:00",
@@ -110,8 +113,12 @@
           const [hours, minutes] = timeStr.split(":").map(Number);
           return hours * 60 + minutes;
         }
-        console.log(val);
+
         eventInfo = val;
+
+        // Save to localStorage
+        localStorage.setItem("eventInfo", JSON.stringify(eventInfo));
+
         try {
           eventInfo.tournamentLength = timeToMinutes(val.endTime) - timeToMinutes(val.startTime);
           renderEventInfo();
