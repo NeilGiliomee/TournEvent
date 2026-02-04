@@ -278,6 +278,15 @@
         <!-- Schedule Column -->
         <div id="scheduleColumn" style="flex: 1; max-width: 1200px">
           <h2 id="scheduleTitle">Schedule</h2>
+          <!-- Loading Bar -->
+          <div id="loadingBar" style="display: none; margin-bottom: 20px;">
+            <div style="font-family: monospace; font-size: 14px; margin-bottom: 8px;">
+              Generating schedule...
+            </div>
+            <div>
+              <span id="loadingBarProgress"></span>
+            </div>
+          </div>
           <div id="schedule"></div>
         </div>
 
@@ -365,11 +374,28 @@
       let schedule = [];
       let selectedPlayerIds = new Set();
 
-      schedule = parseScheduleFromUrl(params.get("data")) || generateSchedule();
-      render();
-      renderPlayerPalette();
-      renderAlerts();
-      console.log(schedule);
+      (async () => {
+        const needsGeneration = !parseScheduleFromUrl(params.get("data"));
+        
+        if (needsGeneration) {
+          // Hide panels during generation
+          document.getElementById("playerPalette").style.display = "none";
+          document.getElementById("alerts").style.display = "none";
+        }
+        
+        schedule = parseScheduleFromUrl(params.get("data")) || await generateSchedule();
+        
+        if (needsGeneration) {
+          // Show panels after generation
+          document.getElementById("playerPalette").style.display = "block";
+          document.getElementById("alerts").style.display = "block";
+        }
+        
+        render();
+        renderPlayerPalette();
+        renderAlerts();
+        console.log(schedule);
+      })();
 
       document.title = TITLE;
       document.getElementById("scheduleTitle").textContent = TITLE;
@@ -478,21 +504,47 @@
         return hours * 60 + minutes;
       }
 
-      function generateScheduleRelaxed() {
-        function shuffle(array) {
-          const arr = [...array];
-          for (let i = arr.length - 1; i > 0; i--) {
-            const j = Math.floor(rand() * (i + 1));
-            [arr[i], arr[j]] = [arr[j], arr[i]];
-          }
-          return arr;
+      function updateLoadingBar(attempt, maxAttempts) {
+        const loadingBar = document.getElementById("loadingBar");
+        const loadingBarProgress = document.getElementById("loadingBarProgress");
+        
+        if (!loadingBar) return;
+        
+        loadingBar.style.display = "block";
+        
+        const progress = attempt / maxAttempts;
+        const barWidth = 40;
+        const filledWidth = Math.floor(progress * barWidth);
+        const emptyWidth = barWidth - filledWidth;
+        
+        const bar = "[" + "#".repeat(filledWidth) + "\u00A0".repeat(emptyWidth) + "]";
+        loadingBarProgress.textContent = bar;
+        
+      }
+
+      function hideLoadingBar() {
+        const loadingBar = document.getElementById("loadingBar");
+        if (loadingBar) {
+          loadingBar.style.display = "none";
         }
+      }
 
-        players = shuffle(playerNames)
-          .slice(0, TOTAL_PLAYERS)
-          .map((name, i) => ({ id: "p" + (i + 1), name }));
+      async function generateScheduleRelaxed() {
+        return new Promise(async (resolve) => {
+          function shuffle(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+              const j = Math.floor(rand() * (i + 1));
+              [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+          }
 
-        function generateSingleSchedule() {
+          players = shuffle(playerNames)
+            .slice(0, TOTAL_PLAYERS)
+            .map((name, i) => ({ id: "p" + (i + 1), name }));
+
+          function generateSingleSchedule() {
           let matchId = 1;
           let minutes = timeStringToMinutes(START_TIME);
           const slots = [];
@@ -532,33 +584,51 @@
 
         let bestSchedule = null;
         let minTotalCollisions = Infinity;
+        const maxAttempts = 10000;
 
-        for (let i = 0; i < 5000; i++) {
-          const schedule = generateSingleSchedule();
-          const { togetherMap, againstMap } = generatePairAlerts(schedule);
+          for (let i = 0; i < maxAttempts; i++) {
+            // Update loading bar every 100 attempts and yield to browser
+            if (i % 100 === 0 || i === 1) {
+              updateLoadingBar(i, maxAttempts);
+              await new Promise(r => setTimeout(r, 0));
+            }
+            
+            const schedule = generateSingleSchedule();
+            const { togetherMap, againstMap } = generatePairAlerts(schedule);
 
-          var tempAlert = buildAlertList(schedule);
-          const totalCollisions = tempAlert.reduce((sum, e) => sum + e.count, 0);
+            var tempAlert = buildAlertList(schedule);
+            const totalCollisions = tempAlert.reduce((sum, e) => sum + e.count, 0);
 
-          if (totalCollisions < minTotalCollisions) {
-            minTotalCollisions = totalCollisions;
-            bestSchedule = schedule;
+            if (totalCollisions < minTotalCollisions) {
+              minTotalCollisions = totalCollisions;
+              bestSchedule = schedule;
+            }
+
+            // Early exit if perfect schedule found
+            if (totalCollisions === TOTAL_PLAYERS * (SLOTS * COURTS * (PLAYERS_PER_MATCH - 1))) break;
           }
 
-          // Early exit if perfect schedule found
-          if (totalCollisions === TOTAL_PLAYERS * (SLOTS * COURTS * (PLAYERS_PER_MATCH - 1))) break;
-        }
-
-        return bestSchedule;
+          resolve(bestSchedule);
+        });
       }
 
-      function generateSchedule(maxRetries = 100) {
-        let attempt = 0;
-        let schedule = null;
+      async function generateSchedule(maxRetries = 50000) {
+        return new Promise(async (resolve) => {
+          let attempt = 0;
+          let schedule = null;
 
-        while (attempt < maxRetries) {
-          attempt++;
-          try {
+          const tryGenerate = async () => {
+            while (attempt < maxRetries) {
+              attempt++;
+              
+              // Update loading bar every 100 attempts and yield to browser
+              if (attempt % 100 === 0 || attempt === 1) {
+                updateLoadingBar(attempt, maxRetries);
+                // Yield to browser to update UI
+                await new Promise(r => setTimeout(r, 0));
+              }
+              
+              try {
             // --- Initialize ---
             players = playerNames.slice(0, TOTAL_PLAYERS).map((name, i) => ({
               id: "p" + (i + 1),
@@ -578,13 +648,27 @@
               matchCounts[p.id] = 0;
             });
 
+            // --- Track first and last round players ---
+            const firstRoundPlayers = new Set();
+            const lastRoundPlayers = new Set();
+
             // --- Build schedule ---
             for (let s = 0; s < SLOTS; s++) {
               const matches = [];
               const slotUsedPlayers = new Set();
+              const isFirstRound = s === 0;
+              const isLastRound = s === SLOTS - 1;
 
               for (let c = 1; c <= COURTS; c++) {
-                let availablePlayers = players.filter((p) => !slotUsedPlayers.has(p.id) && matchCounts[p.id] < gamesPerPlayer);
+                let availablePlayers = players.filter((p) => {
+                  if (slotUsedPlayers.has(p.id)) return false;
+                  if (matchCounts[p.id] >= gamesPerPlayer) return false;
+                  
+                  // Constraint: players in first round cannot play in last round
+                  if (isLastRound && firstRoundPlayers.has(p.id)) return false;
+                  
+                  return true;
+                });
 
                 const matchPlayers = [];
 
@@ -603,7 +687,14 @@
                 }
 
                 // Update slotUsedPlayers, pairing history, and counts
-                matchPlayers.forEach((p) => slotUsedPlayers.add(p.id));
+                matchPlayers.forEach((p) => {
+                  slotUsedPlayers.add(p.id);
+                  
+                  // Track first and last round players
+                  if (isFirstRound) firstRoundPlayers.add(p.id);
+                  if (isLastRound) lastRoundPlayers.add(p.id);
+                });
+                
                 for (let i = 0; i < matchPlayers.length; i++) {
                   matchCounts[matchPlayers[i].id]++;
                   for (let j = 0; j < matchPlayers.length; j++) {
@@ -633,23 +724,31 @@
 
             console.log("Perfect schedule generated on attempt", attempt);
             console.log("Matches per player:", matchCounts);
+            console.log("First round players:", Array.from(firstRoundPlayers).map(id => players.find(p => p.id === id)?.name));
+            console.log("Last round players:", Array.from(lastRoundPlayers).map(id => players.find(p => p.id === id)?.name));
             schedule = slots;
+            hideLoadingBar();
             break; // success
-          } catch (err) {
-            if (attempt === maxRetries) {
-              console.warn("Could not generate perfectly balanced schedule after 100 attempts. Relaxing games-per-player constraint...");
+              } catch (err) {
+                if (attempt === maxRetries) {
+                  console.warn("Could not generate perfectly balanced schedule after " + maxRetries + " attempts. Relaxing games-per-player constraint...");
+                }
+                // retry automatically
+              }
             }
-            // retry automatically
-          }
-        }
 
-        // --- Fallback: relax games-per-player constraint ---
-        if (!schedule) {
-          console.log("Generating schedule without games-per-player constraint (still no repeated pairings)...");
-          schedule = generateScheduleRelaxed();
-        }
+            // --- Fallback: relax games-per-player constraint ---
+            if (!schedule) {
+              console.log("Generating schedule without games-per-player constraint (still no repeated pairings)...");
+              schedule = await generateScheduleRelaxed();
+              hideLoadingBar();
+            }
 
-        return schedule;
+            resolve(schedule);
+          };
+
+          await tryGenerate();
+        });
       }
 
       function minutesToTime(total) {
@@ -1233,6 +1332,44 @@
         pushAlerts(togetherMap, "together", "+");
         pushAlerts(againstMap, "against", "VS");
 
+        // Check for players in both first and last round
+        if (schedule.length >= 2) {
+          const firstRound = schedule[0];
+          const lastRound = schedule[schedule.length - 1];
+          
+          const firstRoundPlayers = new Set();
+          const lastRoundPlayers = new Set();
+          
+          firstRound.matches.forEach(match => {
+            match.players.forEach(player => {
+              firstRoundPlayers.add(player.name);
+            });
+          });
+          
+          lastRound.matches.forEach(match => {
+            match.players.forEach(player => {
+              lastRoundPlayers.add(player.name);
+            });
+          });
+          
+          // Find players in both rounds
+          firstRoundPlayers.forEach(playerName => {
+            if (lastRoundPlayers.has(playerName)) {
+              alerts.push({
+                key: `first-last-${playerName}`,
+                type: "first-last-round",
+                players: [playerName],
+                matches: [
+                  ...firstRound.matches.filter(m => m.players.some(p => p.name === playerName)),
+                  ...lastRound.matches.filter(m => m.players.some(p => p.name === playerName))
+                ],
+                text: `${playerName} plays first and last`,
+                count: 2,
+              });
+            }
+          });
+        }
+
         // return alerts.sort((a, b) => a.text.localeCompare(b.text));
         return alerts;
       }
@@ -1268,13 +1405,13 @@
         const alertDiv = document.getElementById("alerts");
         if (!alertDiv) return;
 
-        alertDiv.innerHTML = "<h3>Alerts</h3>";
+        alertDiv.innerHTML = "<h3>Warnings</h3>";
 
         const alerts = buildAlertList(schedule);
 
         if (alerts.length === 0) {
           const ok = document.createElement("div");
-          ok.textContent = "No issues found 🎉";
+          ok.textContent = "None found";
           ok.style.opacity = "0.7";
           alertDiv.appendChild(ok);
           return;
